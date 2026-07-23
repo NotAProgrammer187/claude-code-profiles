@@ -50,6 +50,10 @@ servers and history). Press `n` to add each further account — a new profile
 starts empty and runs Claude Code's normal login flow the first time you launch
 it.
 
+**In the picker:** press `/` to filter profiles by name or email, `1`–`9` to
+jump straight to one, and `↑↓`/`⏎` to move and launch. The row your current
+shell points at (if any) is tagged `◂ this shell`.
+
 ## How it works
 
 Claude Code keeps everything — credentials, `settings.json`, MCP servers,

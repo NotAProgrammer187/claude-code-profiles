@@ -87,11 +87,40 @@ type model struct {
 	promptKind promptKind
 	renameFrom string
 
-	notice string
-	err    error
-	active string // profile this shell's CLAUDE_CONFIG_DIR points at, if any
-	width  int
-	height int
+	notice    string
+	err       error
+	active    string // profile this shell's CLAUDE_CONFIG_DIR points at, if any
+	filter    string // current filter query
+	filtering bool   // true while the filter input is capturing keys
+	width     int
+	height    int
+}
+
+// visible is the profile list after applying the filter. The cursor always
+// indexes into this slice, so every action operates on what's on screen.
+func (m model) visible() []Profile {
+	if m.filter == "" {
+		return m.profiles
+	}
+	q := strings.ToLower(m.filter)
+	var out []Profile
+	for _, p := range m.profiles {
+		if strings.Contains(strings.ToLower(p.Name), q) ||
+			strings.Contains(strings.ToLower(p.Email), q) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func (m *model) clampCursor() {
+	n := len(m.visible())
+	switch {
+	case m.cursor < 0:
+		m.cursor = 0
+	case m.cursor >= n:
+		m.cursor = max(0, n-1)
+	}
 }
 
 type reloadMsg struct{}
@@ -116,9 +145,7 @@ func (m *model) reload() {
 	}
 	m.profiles = ps
 	m.active = ActiveProfileName(ps)
-	if m.cursor >= len(ps) {
-		m.cursor = max(0, len(ps)-1)
-	}
+	m.clampCursor()
 }
 
 func (m model) Init() tea.Cmd { return textinput.Blink }
@@ -162,9 +189,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.notice, m.err = "", nil
 
+	if m.filtering {
+		return m.updateFilter(msg)
+	}
+
+	vis := m.visible()
 	switch msg.String() {
 	case "q", "esc", "ctrl+c":
 		return m, tea.Quit
+
+	case "/":
+		m.filtering = true
+		return m, nil
 
 	case "up", "k":
 		if m.cursor > 0 {
@@ -172,25 +208,12 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.profiles)-1 {
+		if m.cursor < len(vis)-1 {
 			m.cursor++
 		}
 
 	case "enter":
-		if len(m.profiles) == 0 {
-			m.notice = "No profiles yet — press n to add one."
-			return m, nil
-		}
-		p := m.profiles[m.cursor]
-		cmd, err := Command(p, nil)
-		if err != nil {
-			m.err = err
-			return m, nil
-		}
-		TouchProfile(p.Name)
-		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-			return execDoneMsg{err}
-		})
+		return m.launchSelected()
 
 	case "n":
 		return m.openPrompt(promptNew, "Name for the new profile")
@@ -199,10 +222,10 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openPrompt(promptImport, "Import current ~/.claude as")
 
 	case "r":
-		if len(m.profiles) == 0 {
+		if len(vis) == 0 {
 			return m, nil
 		}
-		m.renameFrom = m.profiles[m.cursor].Name
+		m.renameFrom = vis[m.cursor].Name
 		mm, cmd := m.openPrompt(promptRename, "Rename "+m.renameFrom+" to")
 		m2 := mm.(model)
 		m2.prompt.SetValue(m.renameFrom)
@@ -210,7 +233,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m2, cmd
 
 	case "d":
-		if len(m.profiles) == 0 {
+		if len(vis) == 0 {
 			return m, nil
 		}
 		m.view = viewConfirm
@@ -218,12 +241,70 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		// Digit keys 1-9 jump straight to that profile.
 		if s := msg.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
-			if idx := int(s[0] - '1'); idx < len(m.profiles) {
+			if idx := int(s[0] - '1'); idx < len(vis) {
 				m.cursor = idx
 			}
 		}
 	}
 	return m, nil
+}
+
+// updateFilter handles keys while the filter input is active: typing narrows
+// the list, arrows move within results, enter launches, esc clears.
+func (m model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.filter = ""
+		m.filtering = false
+		m.clampCursor()
+
+	case "enter":
+		m.filtering = false
+		return m.launchSelected()
+
+	case "up", "ctrl+p":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+
+	case "down", "ctrl+n":
+		if m.cursor < len(m.visible())-1 {
+			m.cursor++
+		}
+
+	case "backspace":
+		if r := []rune(m.filter); len(r) > 0 {
+			m.filter = string(r[:len(r)-1])
+			m.cursor = 0
+		}
+
+	default:
+		if s := msg.String(); len([]rune(s)) == 1 {
+			m.filter += s
+			m.cursor = 0
+		}
+	}
+	return m, nil
+}
+
+func (m model) launchSelected() (tea.Model, tea.Cmd) {
+	vis := m.visible()
+	if len(vis) == 0 {
+		if len(m.profiles) == 0 {
+			m.notice = "No profiles yet — press n to add one."
+		}
+		return m, nil
+	}
+	p := vis[m.cursor]
+	cmd, err := Command(p, nil)
+	if err != nil {
+		m.err = err
+		return m, nil
+	}
+	TouchProfile(p.Name)
+	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return execDoneMsg{err}
+	})
 }
 
 func (m model) openPrompt(k promptKind, label string) (tea.Model, tea.Cmd) {
@@ -295,7 +376,7 @@ func (m model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
-		name := m.profiles[m.cursor].Name
+		name := m.visible()[m.cursor].Name
 		if err := Delete(name); err != nil {
 			m.err = err
 		} else {
@@ -382,13 +463,25 @@ func (m model) View() string {
 	b.WriteString(m.rule())
 	b.WriteString("\n\n")
 
-	if len(m.profiles) == 0 {
+	if m.filtering || m.filter != "" {
+		cur := ""
+		if m.filtering {
+			cur = sActive.Render("▊")
+		}
+		b.WriteString("  " + sKey.Render("/") + " " + sPrompt.Render(m.filter) + cur + "\n\n")
+	}
+
+	vis := m.visible()
+	switch {
+	case len(m.profiles) == 0:
 		b.WriteString("  " + sMeta.Render("No profiles yet.") + "\n\n")
 		b.WriteString("  " + sKey.Render("i") + sHelp.Render("  import the account you're already signed into") + "\n")
 		b.WriteString("  " + sKey.Render("n") + sHelp.Render("  add a fresh one") + "\n")
+	case len(vis) == 0:
+		b.WriteString("  " + sMeta.Render("No profiles match ") + sPrompt.Render(m.filter) + sMeta.Render(".") + "\n")
 	}
 
-	for i, p := range m.profiles {
+	for i, p := range vis {
 		sel := i == m.cursor && m.view == viewList
 		if i > 0 {
 			b.WriteString("\n")
@@ -424,7 +517,11 @@ func (m model) View() string {
 	}
 
 	b.WriteString(m.rule() + "\n")
-	b.WriteString("  " + help() + "\n")
+	if m.filtering {
+		b.WriteString("  " + filterHelp() + "\n")
+	} else {
+		b.WriteString("  " + help() + "\n")
+	}
 	return b.String()
 }
 
@@ -479,7 +576,7 @@ func (m model) promptBox() string {
 
 // confirmBox is the bordered destructive-action modal used for delete.
 func (m model) confirmBox() string {
-	n := m.profiles[m.cursor].Name
+	n := m.visible()[m.cursor].Name
 	inner := sWarn.Render("Delete profile ") + sName.Render(n) + sWarn.Render("?") + "\n" +
 		sMeta.Render("Removes its saved login and history — this can't be undone.")
 	box := lipgloss.NewStyle().
@@ -515,9 +612,19 @@ func subline(p Profile) string {
 
 func help() string {
 	pairs := [][2]string{
-		{"↑↓", "move"}, {"1-9", "jump"}, {"⏎", "launch"}, {"n", "new"},
+		{"↑↓", "move"}, {"/", "filter"}, {"⏎", "launch"}, {"n", "new"},
 		{"i", "import"}, {"r", "rename"}, {"d", "delete"}, {"q", "quit"},
 	}
+	return renderKeys(pairs)
+}
+
+func filterHelp() string {
+	return renderKeys([][2]string{
+		{"type", "filter"}, {"↑↓", "move"}, {"⏎", "launch"}, {"esc", "clear"},
+	})
+}
+
+func renderKeys(pairs [][2]string) string {
 	var out []string
 	for _, p := range pairs {
 		out = append(out, sKey.Render(p[0])+sHelp.Render(" "+p[1]))
