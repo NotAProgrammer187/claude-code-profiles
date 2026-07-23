@@ -37,6 +37,7 @@ var (
 	sKey     = lipgloss.NewStyle().Foreground(cDim).Bold(true)
 	sBar     = lipgloss.NewStyle().Foreground(cAccent)
 	sPrompt  = lipgloss.NewStyle().Foreground(cText)
+	sActive  = lipgloss.NewStyle().Foreground(cAccent).Bold(true)
 )
 
 // bigArt is the block-letter "CLAUDE PROFILES" wordmark, 113 columns wide.
@@ -88,6 +89,7 @@ type model struct {
 
 	notice string
 	err    error
+	active string // profile this shell's CLAUDE_CONFIG_DIR points at, if any
 	width  int
 	height int
 }
@@ -113,6 +115,7 @@ func (m *model) reload() {
 		return
 	}
 	m.profiles = ps
+	m.active = ActiveProfileName(ps)
 	if m.cursor >= len(ps) {
 		m.cursor = max(0, len(ps)-1)
 	}
@@ -390,7 +393,7 @@ func (m model) View() string {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(profileRow(i, p, sel))
+		b.WriteString(profileRow(i, p, sel, p.Name == m.active))
 	}
 
 	// Modal views take over the area below the list.
@@ -441,7 +444,7 @@ func statusDot(p Profile) string {
 
 // profileRow renders a two-line card:  [bar] [n] [dot] name  email
 //                                                  plan · status · used · org
-func profileRow(i int, p Profile, sel bool) string {
+func profileRow(i int, p Profile, sel, active bool) string {
 	bar := " "
 	name := sName
 	if sel {
@@ -454,6 +457,9 @@ func profileRow(i int, p Profile, sel bool) string {
 	}
 	head := "  " + bar + " " + num + " " + statusDot(p) + " " +
 		name.Render(pad(p.Name, 16)) + sMeta.Render(p.Label())
+	if active {
+		head += sActive.Render("  ◂ this shell")
+	}
 	// Indent the subline to sit under the name (8 cols of prefix above).
 	sub := strings.Repeat(" ", 8) + sMeta.Render(subline(p))
 	return head + "\n" + sub + "\n"
