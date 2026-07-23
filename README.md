@@ -53,6 +53,13 @@ sets `CLAUDE_CONFIG_DIR` for that single child process before running `claude`.
 Nothing is copied or overwritten on switch, so logins can't clobber each other,
 accounts can run in parallel across terminals, and switching is instant.
 
+Because a profile is just a directory, it works with **any account Claude Code
+can sign into** — Pro, Max, Team, Enterprise, or an API key — with no change on
+ccswitch's side; the plan is only read to label the row. And there's **no limit
+on the number of profiles**: add as many as you like. Each one is a real,
+separately-authenticated account, so this isolates logins — it does not create
+extra capacity or get around any account's own usage limits or billing.
+
 ## Things worth knowing
 
 - **Restart to switch.** A running session reads its config at startup;
