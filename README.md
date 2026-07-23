@@ -63,12 +63,22 @@ accounts can run in parallel across terminals, and switching is instant.
   less complete. This is built for Windows first.
 - **Profiles hold live OAuth tokens.** Don't sync `.ccswitch` to cloud storage or
   commit it anywhere.
-- Use within the terms of your Claude plan.
+- **You are responsible for complying with Anthropic's Terms of Service and Usage
+  Policy.** ccswitch doesn't bypass authentication or billing — each profile logs
+  in normally through Claude Code's own flow. It only isolates config directories.
+
+## Disclaimer
+
+This is an independent, community project. It is **not affiliated with, endorsed
+by, or sponsored by Anthropic**. "Claude" and "Claude Code" are trademarks of
+Anthropic, PBC, used here only nominatively to describe what this tool
+interoperates with.
+
+ccswitch runs entirely on your machine, stores nothing on any server, ships no
+Anthropic code, and does not circumvent Claude Code's authentication or billing.
+Use of Claude Code through ccswitch remains subject to Anthropic's own Terms of
+Service and Usage Policy, and complying with them is your responsibility.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
-
-Not affiliated with, endorsed by, or sponsored by Anthropic. "Claude" and
-"Claude Code" are trademarks of Anthropic, PBC, used here only to describe what
-this tool works with.
+MIT — see [LICENSE](LICENSE). Provided "as is", without warranty of any kind.

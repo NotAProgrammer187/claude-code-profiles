@@ -39,26 +39,23 @@ var (
 	sPrompt  = lipgloss.NewStyle().Foreground(cText)
 )
 
-// bigArt is the full framed wordmark, 82 columns wide. It contains backticks
-// and backslashes, so it has to be written as interpreted string literals.
+// bigArt is the block-letter "CLAUDE PROFILES" wordmark, 113 columns wide.
 var bigArt = []string{
-	" _____                                                                      _____ ",
-	"( ___ )--------------------------------------------------------------------( ___ )",
-	" |   |                                                                      |   | ",
-	" |   |   ____ _                 _        ____             __ _ _            |   | ",
-	" |   |  / ___| | __ _ _   _  __| | ___  |  _ \\ _ __ ___  / _(_) | ___  ___  |   | ",
-	" |   | | |   | |/ _` | | | |/ _` |/ _ \\ | |_) | '__/ _ \\| |_| | |/ _ \\/ __| |   | ",
-	" |   | | |___| | (_| | |_| | (_| |  __/ |  __/| | | (_) |  _| | |  __/\\__ \\ |   | ",
-	" |   |  \\____|_|\\__,_|\\__,_|\\__,_|\\___| |_|   |_|  \\___/|_| |_|_|\\___||___/ |   | ",
-	" |   |                                                by NotAProgrammer187  |   | ",
-	" |___|                                                                      |___| ",
-	"(_____)--------------------------------------------------------------------(_____)",
+	" ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗    ██████╗ ██████╗  ██████╗ ███████╗██╗██╗     ███████╗███████╗",
+	"██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝    ██╔══██╗██╔══██╗██╔═══██╗██╔════╝██║██║     ██╔════╝██╔════╝",
+	"██║     ██║     ███████║██║   ██║██║  ██║█████╗      ██████╔╝██████╔╝██║   ██║█████╗  ██║██║     █████╗  ███████╗",
+	"██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝      ██╔═══╝ ██╔══██╗██║   ██║██╔══╝  ██║██║     ██╔══╝  ╚════██║",
+	"╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗    ██║     ██║  ██║╚██████╔╝██║     ██║███████╗███████╗███████║",
+	" ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝╚══════╝╚══════╝",
 }
 
-// bylineRow is rendered dimmer than the rest of the frame.
-const bylineRow = 8
+// markGradient shades the wordmark top-to-bottom, green into cyan. Chosen to be
+// distinct from Anthropic's own brand palette.
+var markGradient = []string{
+	"#86EFAC", "#4ADE80", "#34D399", "#2DD4BF", "#22D3EE", "#38BDF8",
+}
 
-const bigArtWidth = 82
+const bigArtWidth = 113
 
 // ---------------------------------------------------------------------------
 // Model
@@ -131,7 +128,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
-		m.width = clamp(msg.Width-4, 40, 96)
+		m.width = clamp(msg.Width-4, 40, 118)
 		m.height = msg.Height
 		return m, nil
 
@@ -214,6 +211,14 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.view = viewConfirm
+
+	default:
+		// Digit keys 1-9 jump straight to that profile.
+		if s := msg.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
+			if idx := int(s[0] - '1'); idx < len(m.profiles) {
+				m.cursor = idx
+			}
+		}
 	}
 	return m, nil
 }
@@ -305,8 +310,8 @@ func (m model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // Banner
 // ---------------------------------------------------------------------------
 
-// Vertical cost of the framed banner, including the rule and its blank lines.
-const bigChrome = 17
+// Vertical cost of the big banner and the framed footer, blanks included.
+const bigChrome = 16
 
 func (m model) signedIn() int {
 	n := 0
@@ -326,18 +331,21 @@ func (m model) stats() string {
 	return s
 }
 
-// bigMark renders the framed wordmark, dimming the byline row so the
-// signature reads as a credit rather than part of the logo.
+// bigMark renders the block wordmark as a vertical green-to-cyan gradient,
+// with a dim byline right-aligned underneath.
 func bigMark() string {
 	rows := make([]string, len(bigArt))
 	for i, r := range bigArt {
-		if i == bylineRow {
-			rows[i] = sCount.Render(r)
-			continue
-		}
-		rows[i] = sMark.Render(r)
+		c := markGradient[i%len(markGradient)]
+		rows[i] = lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Render(r)
 	}
-	return lipgloss.NewStyle().PaddingLeft(1).Render(strings.Join(rows, "\n"))
+	art := strings.Join(rows, "\n")
+
+	const byline = "by NotAProgrammer187"
+	if pad := bigArtWidth - lipgloss.Width(byline); pad > 0 {
+		art += "\n" + strings.Repeat(" ", pad) + sCount.Render(byline)
+	}
+	return lipgloss.NewStyle().PaddingLeft(1).Render(art)
 }
 
 // banner shows the framed wordmark when the terminal can hold it without
@@ -372,49 +380,109 @@ func (m model) View() string {
 	b.WriteString("\n\n")
 
 	if len(m.profiles) == 0 {
-		b.WriteString(sMeta.Render("  No profiles yet.") + "\n")
-		b.WriteString(sMeta.Render("  Press i to import the account you're already signed into,") + "\n")
-		b.WriteString(sMeta.Render("  or n to add a fresh one.") + "\n")
+		b.WriteString("  " + sMeta.Render("No profiles yet.") + "\n\n")
+		b.WriteString("  " + sKey.Render("i") + sHelp.Render("  import the account you're already signed into") + "\n")
+		b.WriteString("  " + sKey.Render("n") + sHelp.Render("  add a fresh one") + "\n")
 	}
 
 	for i, p := range m.profiles {
 		sel := i == m.cursor && m.view == viewList
-		bar, name := "  ", sName
-		if sel {
-			bar, name = sBar.Render("▌ "), sNameSel
-		}
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString("  " + bar + name.Render(pad(p.Name, 18)) + sMeta.Render(p.Label()) + "\n")
-		b.WriteString("    " + sMeta.Render(subline(p)) + "\n")
+		b.WriteString(profileRow(i, p, sel))
 	}
 
-	b.WriteString("\n")
-
+	// Modal views take over the area below the list.
 	switch m.view {
 	case viewPrompt:
-		b.WriteString("  " + sPrompt.Render(m.notice+": ") + m.prompt.View() + "\n\n")
-		b.WriteString("  " + sHelp.Render("enter confirm · esc cancel") + "\n")
+		b.WriteString("\n")
+		b.WriteString(m.promptBox())
 		return b.String()
-
 	case viewConfirm:
-		n := m.profiles[m.cursor].Name
-		b.WriteString("  " + sWarn.Render("Delete "+n+" and its saved login? (y/n)") + "\n\n")
+		b.WriteString("\n")
+		b.WriteString(m.confirmBox())
 		return b.String()
 	}
 
-	if m.err != nil {
-		b.WriteString("  " + sErr.Render("✗ "+m.err.Error()) + "\n\n")
-	} else if m.notice != "" {
-		b.WriteString("  " + sOK.Render("• "+m.notice) + "\n\n")
-	} else if k := ApiKeyInEnv(); k != "" {
-		b.WriteString("  " + sWarn.Render("! "+k+" is set in your shell; it would override the") + "\n")
-		b.WriteString("  " + sWarn.Render("  subscription login. ccswitch unsets it for the session.") + "\n\n")
+	// One reserved status line: error, notice, or API-key warning.
+	b.WriteString("\n")
+	switch {
+	case m.err != nil:
+		b.WriteString("  " + sErr.Render("✗ "+m.err.Error()) + "\n")
+	case m.notice != "":
+		b.WriteString("  " + sOK.Render("✓ "+m.notice) + "\n")
+	default:
+		if k := ApiKeyInEnv(); k != "" {
+			b.WriteString("  " + sWarn.Render("! "+k+" is set in your shell — ccswitch unsets it for the session.") + "\n")
+		} else {
+			b.WriteString("\n")
+		}
 	}
 
+	b.WriteString(m.rule() + "\n")
 	b.WriteString("  " + help() + "\n")
 	return b.String()
+}
+
+// statusDot is a single glyph that encodes auth state at a glance:
+// filled green = signed in, filled amber = token will refresh, hollow = idle.
+func statusDot(p Profile) string {
+	_, kind := p.Status()
+	switch kind {
+	case StatusOK:
+		return sOK.Render("●")
+	case StatusWarn:
+		return sWarn.Render("●")
+	default:
+		return sMeta.Render("○")
+	}
+}
+
+// profileRow renders a two-line card:  [bar] [n] [dot] name  email
+//                                                  plan · status · used · org
+func profileRow(i int, p Profile, sel bool) string {
+	bar := " "
+	name := sName
+	if sel {
+		bar = sBar.Render("▌")
+		name = sNameSel
+	}
+	num := sMeta.Render(" ")
+	if i < 9 {
+		num = sKey.Render(fmt.Sprintf("%d", i+1))
+	}
+	head := "  " + bar + " " + num + " " + statusDot(p) + " " +
+		name.Render(pad(p.Name, 16)) + sMeta.Render(p.Label())
+	// Indent the subline to sit under the name (8 cols of prefix above).
+	sub := strings.Repeat(" ", 8) + sMeta.Render(subline(p))
+	return head + "\n" + sub + "\n"
+}
+
+// promptBox is the bordered text-input modal used for new / import / rename.
+func (m model) promptBox() string {
+	inner := sPrompt.Render(m.notice) + "\n" + sTitle.Render("› ") + m.prompt.View()
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(cAccent).
+		Padding(0, 1).
+		Render(inner)
+	hint := "    " + sKey.Render("⏎") + sHelp.Render(" confirm   ") + sKey.Render("esc") + sHelp.Render(" cancel")
+	return lipgloss.NewStyle().PaddingLeft(2).Render(box) + "\n" + hint + "\n"
+}
+
+// confirmBox is the bordered destructive-action modal used for delete.
+func (m model) confirmBox() string {
+	n := m.profiles[m.cursor].Name
+	inner := sWarn.Render("Delete profile ") + sName.Render(n) + sWarn.Render("?") + "\n" +
+		sMeta.Render("Removes its saved login and history — this can't be undone.")
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(cWarn).
+		Padding(0, 1).
+		Render(inner)
+	hint := "    " + sKey.Render("y") + sHelp.Render(" delete   ") + sKey.Render("n") + sHelp.Render(" cancel")
+	return lipgloss.NewStyle().PaddingLeft(2).Render(box) + "\n" + hint + "\n"
 }
 
 func subline(p Profile) string {
@@ -441,7 +509,7 @@ func subline(p Profile) string {
 
 func help() string {
 	pairs := [][2]string{
-		{"↑↓", "move"}, {"⏎", "launch"}, {"n", "new"},
+		{"↑↓", "move"}, {"1-9", "jump"}, {"⏎", "launch"}, {"n", "new"},
 		{"i", "import"}, {"r", "rename"}, {"d", "delete"}, {"q", "quit"},
 	}
 	var out []string
