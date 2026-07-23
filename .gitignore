@@ -1,6 +1,6 @@
-# Build output
-ccswitch
-ccswitch.exe
+# Build output (anchored to repo root so it does NOT match cmd/ccswitch/)
+/ccswitch
+/ccswitch.exe
 *.exe
 *.syso
 dist/
