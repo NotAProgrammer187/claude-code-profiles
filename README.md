@@ -19,6 +19,12 @@ Grab `ccswitch.exe` from the
 [Releases page](https://github.com/NotAProgrammer187/claude-code-profiles/releases)
 and put it anywhere on your PATH.)
 
+**macOS / Linux.** Download the matching binary from the
+[Releases page](https://github.com/NotAProgrammer187/claude-code-profiles/releases)
+— `ccswitch-darwin-arm64`, `ccswitch-darwin-amd64`, or `ccswitch-linux-amd64` —
+then `chmod +x` it and move it onto your PATH (e.g. `~/bin`). On macOS, credential
+isolation is partial (see below).
+
 **Build from source** — needs Go 1.22+, produces one static `.exe`:
 
 ```powershell
