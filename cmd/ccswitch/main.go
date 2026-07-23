@@ -17,6 +17,7 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch run <name> -- --resume
                            extra args after -- go to claude
   ccswitch list            print profiles
+  ccswitch current         print the profile this shell is set to
   ccswitch where <name>    print a profile's config directory
   ccswitch version
 
@@ -42,6 +43,8 @@ func run(args []string) error {
 		return cmdRun(args[1:])
 	case "list", "ls":
 		return cmdList()
+	case "current":
+		return cmdCurrent()
 	case "where":
 		return cmdWhere(args[1:])
 	case "version", "--version", "-v":
@@ -117,6 +120,23 @@ func cmdList() error {
 		status, _ := p.Status()
 		fmt.Printf("%-18s %-30s %s\n", p.Name, p.Label(), status)
 	}
+	return nil
+}
+
+func cmdCurrent() error {
+	ps, err := List()
+	if err != nil {
+		return err
+	}
+	if name := ActiveProfileName(ps); name != "" {
+		fmt.Println(name)
+		return nil
+	}
+	if dir := ActiveConfigDir(); dir != "" {
+		fmt.Printf("CLAUDE_CONFIG_DIR points at %s (not a ccswitch profile)\n", dir)
+		return nil
+	}
+	fmt.Println("no active profile — CLAUDE_CONFIG_DIR is not set in this shell")
 	return nil
 }
 

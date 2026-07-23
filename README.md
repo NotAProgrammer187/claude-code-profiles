@@ -41,6 +41,7 @@ cd claude-code-profiles
 | `ccswitch run work` | launch straight into a profile |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
 | `ccswitch list` | print profiles |
+| `ccswitch current` | print the profile this shell is set to |
 | `ccswitch where work` | print a profile's config directory |
 
 **First run:** press `i` to import the account you're already logged into (this

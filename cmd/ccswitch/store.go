@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -233,6 +234,41 @@ func List() ([]Profile, error) {
 		return out[i].LastUsed.After(out[j].LastUsed)
 	})
 	return out, nil
+}
+
+// ActiveConfigDir returns the cleaned CLAUDE_CONFIG_DIR the current shell
+// points at, or "" when it is unset. ccswitch only sets this for the child
+// Claude Code process, so it is normally empty — it's non-empty when the user
+// (or a shell integration) has exported it for the session.
+func ActiveConfigDir() string {
+	d := os.Getenv(envOverride)
+	if d == "" {
+		return ""
+	}
+	return filepath.Clean(d)
+}
+
+// ActiveProfileName returns the name of the profile the current shell's
+// CLAUDE_CONFIG_DIR resolves to, or "" if it is unset or points elsewhere.
+func ActiveProfileName(ps []Profile) string {
+	active := ActiveConfigDir()
+	if active == "" {
+		return ""
+	}
+	for _, p := range ps {
+		if sameDir(p.Dir, active) {
+			return p.Name
+		}
+	}
+	return ""
+}
+
+func sameDir(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 func Find(name string) (Profile, error) {
