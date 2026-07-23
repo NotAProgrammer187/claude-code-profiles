@@ -1,0 +1,18 @@
+# Build output
+ccswitch
+ccswitch.exe
+*.exe
+*.syso
+dist/
+
+# Never commit anything that could carry a real login
+.credentials.json
+.claude.json
+.ccswitch/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
