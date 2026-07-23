@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const version = "0.1.0"
+const version = "0.1.2"
 
 const usage = `ccswitch — run Claude Code as any of your accounts, without logging out
 
