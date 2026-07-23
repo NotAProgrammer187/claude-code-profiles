@@ -1,0 +1,43 @@
+name: release
+
+# Build ccswitch.exe and attach it to a GitHub Release whenever you push a
+# version tag, e.g.:
+#
+#   git tag v0.1.0
+#   git push origin v0.1.0
+#
+# The workflow compiles the same single static binary build.ps1 produces, then
+# creates (or updates) the Release for that tag with ccswitch.exe attached, so
+# users can download it directly or via install.ps1.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # needed to create the release and upload assets
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build ccswitch.exe
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          go mod tidy
+          go build -ldflags "-s -w" -o ccswitch.exe ./cmd/ccswitch
+
+      - name: Create release and upload binary
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ccswitch.exe
+          generate_release_notes: true

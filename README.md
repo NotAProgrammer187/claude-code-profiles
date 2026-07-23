@@ -71,7 +71,21 @@ matters:
 
 ## Install
 
-Needs Go 1.22+. The output is one static `.exe` with no runtime dependency.
+**Quick install (Windows, no Go needed).** Downloads the prebuilt `.exe` from
+the latest release and puts it on your PATH:
+
+```powershell
+irm https://raw.githubusercontent.com/NotAProgrammer187/claude-code-profiles/main/install.ps1 | iex
+```
+
+Then open a new terminal and run `ccswitch`.
+
+Prefer not to pipe a script? Grab `ccswitch.exe` from the
+[Releases page](https://github.com/NotAProgrammer187/claude-code-profiles/releases)
+and drop it anywhere on your PATH.
+
+**Build from source** (needs Go 1.22+). The output is one static `.exe` with no
+runtime dependency:
 
 ```powershell
 git clone https://github.com/NotAProgrammer187/claude-code-profiles
