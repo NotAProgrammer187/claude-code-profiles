@@ -1,14 +1,13 @@
 name: release
 
-# Build ccswitch.exe and attach it to a GitHub Release whenever you push a
-# version tag, e.g.:
+# Build ccswitch for every supported platform and attach the binaries to a
+# GitHub Release whenever you push a version tag, e.g.:
 #
-#   git tag v0.1.0
-#   git push origin v0.1.0
+#   git tag v0.1.3
+#   git push origin v0.1.3
 #
-# The workflow compiles the same single static binary build.ps1 produces, then
-# creates (or updates) the Release for that tag with ccswitch.exe attached, so
-# users can download it directly or via install.ps1.
+# The Windows asset stays named ccswitch.exe so install.ps1 keeps working; the
+# macOS and Linux binaries carry a platform suffix.
 
 on:
   push:
@@ -21,6 +20,13 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64, out: ccswitch.exe }
+          - { goos: darwin,  goarch: arm64, out: ccswitch-darwin-arm64 }
+          - { goos: darwin,  goarch: amd64, out: ccswitch-darwin-amd64 }
+          - { goos: linux,   goarch: amd64, out: ccswitch-linux-amd64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -28,16 +34,29 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Build ccswitch.exe
+      - name: Build ${{ matrix.out }}
         env:
-          GOOS: windows
-          GOARCH: amd64
-        run: |
-          go mod tidy
-          go build -ldflags "-s -w" -o ccswitch.exe ./cmd/ccswitch
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build -ldflags "-s -w" -o "${{ matrix.out }}" ./cmd/ccswitch
 
-      - name: Create release and upload binary
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: ${{ matrix.out }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: ccswitch.exe
+          files: dist/*
           generate_release_notes: true
