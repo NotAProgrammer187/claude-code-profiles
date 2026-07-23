@@ -19,6 +19,7 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch list            print profiles
   ccswitch current         print the profile this shell is set to
   ccswitch where <name>    print a profile's config directory
+  ccswitch upgrade         update ccswitch to the latest release
   ccswitch version
 
 Each profile is its own CLAUDE_CONFIG_DIR, so accounts never share
@@ -34,6 +35,8 @@ func main() {
 }
 
 func run(args []string) error {
+	cleanupOldBinary()
+
 	if len(args) == 0 {
 		return interactive()
 	}
@@ -47,6 +50,8 @@ func run(args []string) error {
 		return cmdCurrent()
 	case "where":
 		return cmdWhere(args[1:])
+	case "upgrade", "self-update":
+		return cmdUpgrade()
 	case "version", "--version", "-v":
 		fmt.Println("ccswitch " + version)
 		return nil

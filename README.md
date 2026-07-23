@@ -43,6 +43,7 @@ cd claude-code-profiles
 | `ccswitch list` | print profiles |
 | `ccswitch current` | print the profile this shell is set to |
 | `ccswitch where work` | print a profile's config directory |
+| `ccswitch upgrade` | update ccswitch to the latest release |
 
 **First run:** press `i` to import the account you're already logged into (this
 copies your existing `~/.claude` and `~/.claude.json`, so you keep settings, MCP
