@@ -16,6 +16,9 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch run <name>      launch straight into a profile
   ccswitch run <name> -- --resume
                            extra args after -- go to claude
+  ccswitch use <name>      pin this shell to a profile (prints the command;
+                           eval it, e.g. Invoke-Expression (ccswitch use work))
+  ccswitch use --unset     print the command that unpins this shell
   ccswitch usage           show each account's rate-limit usage
   ccswitch list            print profiles
   ccswitch current         print the profile this shell is set to
@@ -45,6 +48,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "run":
 		return cmdRun(args[1:])
+	case "use":
+		return cmdUse(args[1:])
 	case "usage", "limits":
 		return cmdUsage()
 	case "list", "ls":
