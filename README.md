@@ -40,6 +40,7 @@ cd claude-code-profiles
 | `ccswitch` | open the picker |
 | `ccswitch run work` | launch straight into a profile |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
+| `ccswitch usage` | show each account's rate-limit usage |
 | `ccswitch list` | print profiles |
 | `ccswitch current` | print the profile this shell is set to |
 | `ccswitch where work` | print a profile's config directory |
@@ -54,6 +55,14 @@ it.
 **In the picker:** press `/` to filter profiles by name or email, `1`–`9` to
 jump straight to one, and `↑↓`/`⏎` to move and launch. The row your current
 shell points at (if any) is tagged `◂ this shell`.
+
+**Which account has headroom?** Signed-in rows also show how much of each
+account's 5-hour and weekly rate limit is used (`5h 42% · wk 12%`), turning
+amber at 70% and red — with the reset time — at 90%. `ccswitch usage` prints
+the same numbers in the terminal. This reads the endpoint Claude Code's own
+`/usage` screen uses, with each profile's existing token; it's display-only
+(nothing is written or refreshed), and if the endpoint ever changes shape the
+rows simply omit it.
 
 ## How it works
 
