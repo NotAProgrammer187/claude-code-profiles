@@ -94,6 +94,10 @@ type model struct {
 	filtering bool   // true while the filter input is capturing keys
 	width     int
 	height    int
+
+	// usage holds each profile's rate-limit standing, filled in as async
+	// fetches land. A profile with no entry simply doesn't show usage.
+	usage map[string]*Usage
 }
 
 // visible is the profile list after applying the filter. The cursor always
@@ -126,13 +130,20 @@ func (m *model) clampCursor() {
 type reloadMsg struct{}
 type execDoneMsg struct{ err error }
 
+// usageMsg delivers one profile's fetched rate-limit standing; u is nil when
+// the fetch failed and the row should keep showing nothing.
+type usageMsg struct {
+	name string
+	u    *Usage
+}
+
 func newModel() model {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 32
 	ti.Width = 30
 
-	m := model{prompt: ti, width: 78, height: 24}
+	m := model{prompt: ti, width: 78, height: 24, usage: map[string]*Usage{}}
 	m.reload()
 	return m
 }
@@ -148,7 +159,28 @@ func (m *model) reload() {
 	m.clampCursor()
 }
 
-func (m model) Init() tea.Cmd { return textinput.Blink }
+func (m model) Init() tea.Cmd { return tea.Batch(textinput.Blink, m.usageCmds()) }
+
+// usageCmds kicks off one background fetch per signed-in profile. Profiles
+// whose access token is already expired are skipped — the fetch would only
+// 401, and Claude Code refreshes the token the next time they launch.
+func (m model) usageCmds() tea.Cmd {
+	var cmds []tea.Cmd
+	for _, p := range m.profiles {
+		if !p.SignedIn || (!p.Expires.IsZero() && time.Now().After(p.Expires)) {
+			continue
+		}
+		p := p
+		cmds = append(cmds, func() tea.Msg {
+			u, err := FetchUsage(p)
+			if err != nil {
+				return usageMsg{name: p.Name}
+			}
+			return usageMsg{name: p.Name, u: u}
+		})
+	}
+	return tea.Batch(cmds...)
+}
 
 // ---------------------------------------------------------------------------
 // Update
@@ -171,6 +203,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		}
 		m.reload()
+		// The session that just ended consumed quota; refresh the numbers.
+		return m, m.usageCmds()
+
+	case usageMsg:
+		if msg.u != nil {
+			m.usage[msg.name] = msg.u
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -486,7 +525,7 @@ func (m model) View() string {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(profileRow(i, p, sel, p.Name == m.active))
+		b.WriteString(profileRow(i, p, sel, p.Name == m.active, m.usage[p.Name]))
 	}
 
 	// Modal views take over the area below the list.
@@ -540,8 +579,8 @@ func statusDot(p Profile) string {
 }
 
 // profileRow renders a two-line card:  [bar] [n] [dot] name  email
-//                                                  plan · status · used · org
-func profileRow(i int, p Profile, sel, active bool) string {
+//                                                  plan · status · usage · used · org
+func profileRow(i int, p Profile, sel, active bool, u *Usage) string {
 	bar := " "
 	name := sName
 	if sel {
@@ -558,7 +597,7 @@ func profileRow(i int, p Profile, sel, active bool) string {
 		head += sActive.Render("  ◂ this shell")
 	}
 	// Indent the subline to sit under the name (8 cols of prefix above).
-	sub := strings.Repeat(" ", 8) + sMeta.Render(subline(p))
+	sub := strings.Repeat(" ", 8) + sMeta.Render(subline(p, u))
 	return head + "\n" + sub + "\n"
 }
 
@@ -588,7 +627,7 @@ func (m model) confirmBox() string {
 	return lipgloss.NewStyle().PaddingLeft(2).Render(box) + "\n" + hint + "\n"
 }
 
-func subline(p Profile) string {
+func subline(p Profile, u *Usage) string {
 	var parts []string
 	if p.Plan != "" {
 		parts = append(parts, p.Plan)
@@ -601,6 +640,7 @@ func subline(p Profile) string {
 		status = sOK.Render(status)
 	}
 	parts = append(parts, status)
+	parts = append(parts, usageParts(u)...)
 	if !p.LastUsed.IsZero() {
 		parts = append(parts, "used "+ago(p.LastUsed))
 	}
@@ -608,6 +648,45 @@ func subline(p Profile) string {
 		parts = append(parts, p.Org)
 	}
 	return strings.Join(parts, " · ")
+}
+
+// usageParts renders rate-limit windows for the subline, coloured by how
+// close each one is to the ceiling. Nearly-exhausted windows also show when
+// they reset — that's the number you actually switch profiles over.
+func usageParts(u *Usage) []string {
+	if u == nil {
+		return nil
+	}
+	var out []string
+	if s := windowPart("5h", u.Session); s != "" {
+		out = append(out, s)
+	}
+	if s := windowPart("wk", u.Week); s != "" {
+		out = append(out, s)
+	}
+	if u.Opus != nil && u.Opus.Utilization > 0 {
+		if s := windowPart("opus", u.Opus); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func windowPart(label string, w *UsageWindow) string {
+	if w == nil {
+		return ""
+	}
+	s := fmt.Sprintf("%s %d%%", label, pct(w.Utilization))
+	switch {
+	case w.Utilization >= 90:
+		s = sErr.Render(s)
+		if !w.ResetsAt.IsZero() {
+			s += sMeta.Render(" resets " + resetClock(w.ResetsAt))
+		}
+	case w.Utilization >= 70:
+		s = sWarn.Render(s)
+	}
+	return s
 }
 
 func help() string {

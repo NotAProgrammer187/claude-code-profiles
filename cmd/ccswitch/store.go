@@ -167,10 +167,23 @@ type claudeConfig struct {
 
 type credentials struct {
 	ClaudeAiOauth struct {
+		AccessToken      string `json:"accessToken"`
 		RefreshToken     string `json:"refreshToken"`
 		ExpiresAt        int64  `json:"expiresAt"` // epoch millis
 		SubscriptionType string `json:"subscriptionType"`
 	} `json:"claudeAiOauth"`
+}
+
+func readCredentials(dir string) (credentials, error) {
+	var cr credentials
+	b, err := os.ReadFile(filepath.Join(dir, ".credentials.json"))
+	if err != nil {
+		return cr, err
+	}
+	if err := json.Unmarshal(b, &cr); err != nil {
+		return cr, err
+	}
+	return cr, nil
 }
 
 func readMeta(p *Profile) {
@@ -181,16 +194,13 @@ func readMeta(p *Profile) {
 			p.Org = cc.OAuthAccount.OrganizationName
 		}
 	}
-	if b, err := os.ReadFile(filepath.Join(p.Dir, ".credentials.json")); err == nil {
-		var cr credentials
-		if json.Unmarshal(b, &cr) == nil {
-			o := cr.ClaudeAiOauth
-			p.SignedIn = o.RefreshToken != ""
-			if o.ExpiresAt > 0 {
-				p.Expires = time.UnixMilli(o.ExpiresAt)
-			}
-			p.Plan = strings.TrimSpace(o.SubscriptionType)
+	if cr, err := readCredentials(p.Dir); err == nil {
+		o := cr.ClaudeAiOauth
+		p.SignedIn = o.RefreshToken != ""
+		if o.ExpiresAt > 0 {
+			p.Expires = time.UnixMilli(o.ExpiresAt)
 		}
+		p.Plan = strings.TrimSpace(o.SubscriptionType)
 	}
 }
 

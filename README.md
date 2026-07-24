@@ -40,6 +40,12 @@ cd claude-code-profiles
 | `ccswitch` | open the picker |
 | `ccswitch run work` | launch straight into a profile |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
+| `ccswitch use work` | pin the current shell to a profile (see below) |
+| `ccswitch usage` | show each account's rate-limit usage |
+| `ccswitch new work` | create an empty profile from the CLI |
+| `ccswitch import work` | copy the current `~/.claude` into a new profile |
+| `ccswitch rename old new` | rename a profile |
+| `ccswitch rm work` | delete a profile (asks first; `-y` skips) |
 | `ccswitch list` | print profiles |
 | `ccswitch current` | print the profile this shell is set to |
 | `ccswitch where work` | print a profile's config directory |
@@ -49,11 +55,43 @@ cd claude-code-profiles
 copies your existing `~/.claude` and `~/.claude.json`, so you keep settings, MCP
 servers and history). Press `n` to add each further account — a new profile
 starts empty and runs Claude Code's normal login flow the first time you launch
-it.
+it. Everything the picker keys do is also a plain command (`new`, `import`,
+`rename`, `rm`), so setup scripts and dotfiles can manage profiles without the
+UI.
 
 **In the picker:** press `/` to filter profiles by name or email, `1`–`9` to
 jump straight to one, and `↑↓`/`⏎` to move and launch. The row your current
 shell points at (if any) is tagged `◂ this shell`.
+
+**Which account has headroom?** Signed-in rows also show how much of each
+account's 5-hour and weekly rate limit is used (`5h 42% · wk 12%`), turning
+amber at 70% and red — with the reset time — at 90%. `ccswitch usage` prints
+the same numbers in the terminal. This reads the endpoint Claude Code's own
+`/usage` screen uses, with each profile's existing token; it's display-only
+(nothing is written or refreshed), and if the endpoint ever changes shape the
+rows simply omit it.
+
+### Pin a shell to a profile
+
+`ccswitch run` launches one session; `ccswitch use` points the shell itself at
+a profile, so every plain `claude` you type afterwards runs as that account. A
+child process can't change its parent's environment, so — like nvm or direnv —
+`use` prints the command and you eval it:
+
+```powershell
+# PowerShell
+Invoke-Expression (ccswitch use work)
+```
+
+```sh
+# bash / zsh (incl. Git Bash)
+eval "$(ccswitch use work)"
+```
+
+The picker tags that shell's row `◂ this shell`, `ccswitch current` names it,
+and `Invoke-Expression (ccswitch use --unset)` (or `eval "$(ccswitch use
+--unset)"`) unpins the shell again. Auto-detection covers PowerShell and POSIX
+shells; pass `--shell pwsh|cmd|bash|fish` to override.
 
 ## How it works
 
