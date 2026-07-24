@@ -41,6 +41,7 @@ cd claude-code-profiles
 | `ccswitch run work` | launch straight into a profile |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
 | `ccswitch use work` | pin the current shell to a profile (see below) |
+| `ccswitch init pwsh` | shell integration: `use` applies itself, plus tab completion |
 | `ccswitch usage` | show each account's rate-limit usage |
 | `ccswitch sync --from work` | copy shared config into your other profiles (see below) |
 | `ccswitch new work` | create an empty profile from the CLI |
@@ -93,6 +94,31 @@ The picker tags that shell's row `◂ this shell`, `ccswitch current` names it,
 and `Invoke-Expression (ccswitch use --unset)` (or `eval "$(ccswitch use
 --unset)"`) unpins the shell again. Auto-detection covers PowerShell and POSIX
 shells; pass `--shell pwsh|cmd|bash|fish` to override.
+
+### Skip the eval: shell integration
+
+`ccswitch init` prints a shell function that does the eval for you, so plain
+`ccswitch use work` pins the shell — and it adds tab completion for profile
+names. Install it once:
+
+```powershell
+# PowerShell
+ccswitch init pwsh | Add-Content $PROFILE
+```
+
+```sh
+ccswitch init bash >> ~/.bashrc
+ccswitch init zsh  >> ~/.zshrc
+ccswitch init fish  > ~/.config/fish/conf.d/ccswitch.fish
+```
+
+Open a new shell and `ccswitch use work` applies immediately;
+`ccswitch run <tab>` completes profile names, and `sync --only <tab>` completes
+its parts. Everything except `use` is passed straight through to the same
+binary, so nothing else changes. (In PowerShell, words starting with `-` are
+claimed by PowerShell's own parameter completion, so flags aren't completed
+there — commands, profiles and flag values are. cmd.exe has no functions to
+hang this on, so it keeps pasting what `ccswitch use` prints.)
 
 ### Share config between profiles
 

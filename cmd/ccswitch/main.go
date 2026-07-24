@@ -21,6 +21,8 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch use <name>      pin this shell to a profile (prints the command;
                            eval it, e.g. Invoke-Expression (ccswitch use work))
   ccswitch use --unset     print the command that unpins this shell
+  ccswitch init <shell>    print shell integration: makes 'use' apply itself and
+                           adds tab completion (pwsh, bash, zsh, fish)
   ccswitch usage           show each account's rate-limit usage
   ccswitch sync --from <name>
                            copy shared config (settings, CLAUDE.md, commands,
@@ -35,6 +37,7 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch where <name>    print a profile's config directory
   ccswitch upgrade         update ccswitch to the latest release
   ccswitch version
+  ccswitch help
 
 Each profile is its own CLAUDE_CONFIG_DIR, so accounts never share
 credentials, settings, MCP servers or history — and you can run two at
@@ -64,6 +67,11 @@ func run(args []string) error {
 		return cmdUsage()
 	case "sync":
 		return cmdSync(args[1:])
+	case "init":
+		return cmdInit(args[1:])
+	case "complete":
+		// Internal: called by the snippets `ccswitch init` prints.
+		return cmdComplete(args[1:])
 	case "new", "add", "create":
 		return cmdNew(args[1:])
 	case "import":
