@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -20,6 +22,10 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
                            eval it, e.g. Invoke-Expression (ccswitch use work))
   ccswitch use --unset     print the command that unpins this shell
   ccswitch usage           show each account's rate-limit usage
+  ccswitch new <name>      create an empty profile (sign in on first launch)
+  ccswitch import <name>   copy the current ~/.claude into a new profile
+  ccswitch rename <a> <b>  rename a profile
+  ccswitch rm <name>       delete a profile and its login (-y skips the prompt)
   ccswitch list            print profiles
   ccswitch current         print the profile this shell is set to
   ccswitch where <name>    print a profile's config directory
@@ -52,6 +58,14 @@ func run(args []string) error {
 		return cmdUse(args[1:])
 	case "usage", "limits":
 		return cmdUsage()
+	case "new", "add", "create":
+		return cmdNew(args[1:])
+	case "import":
+		return cmdImport(args[1:])
+	case "rename", "mv":
+		return cmdRename(args[1:])
+	case "rm", "remove":
+		return cmdRm(args[1:])
 	case "list", "ls":
 		return cmdList()
 	case "current":
@@ -162,5 +176,85 @@ func cmdWhere(args []string) error {
 		return err
 	}
 	fmt.Println(p.Dir)
+	return nil
+}
+
+func cmdNew(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: ccswitch new <name>")
+	}
+	p, err := Create(args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Created %s — sign in with: ccswitch run %s\n", p.Name, p.Name)
+	return nil
+}
+
+func cmdImport(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: ccswitch import <name>")
+	}
+	p, err := Import(args[0])
+	if err != nil {
+		return err
+	}
+	if p.Email != "" {
+		fmt.Printf("Imported %s into %s.\n", p.Email, p.Name)
+	} else {
+		fmt.Printf("Imported existing config into %s.\n", p.Name)
+	}
+	return nil
+}
+
+func cmdRename(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: ccswitch rename <old> <new>")
+	}
+	if err := Rename(args[0], args[1]); err != nil {
+		return err
+	}
+	fmt.Printf("Renamed %s to %s.\n", args[0], args[1])
+	return nil
+}
+
+func cmdRm(args []string) error {
+	var name string
+	yes := false
+	for _, a := range args {
+		switch {
+		case a == "-y" || a == "--yes":
+			yes = true
+		case strings.HasPrefix(a, "-"):
+			return fmt.Errorf("unknown flag %q (usage: ccswitch rm <profile> [-y])", a)
+		case name == "":
+			name = a
+		default:
+			return fmt.Errorf("unexpected argument %q", a)
+		}
+	}
+	if name == "" {
+		return fmt.Errorf("usage: ccswitch rm <profile> [-y]")
+	}
+
+	// Resolve first so the prompt names the real profile, not a typo.
+	p, err := Find(name)
+	if err != nil {
+		return err
+	}
+	if !yes {
+		fmt.Printf("Delete profile %q and its saved login? This can't be undone. [y/N] ", p.Name)
+		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		switch strings.ToLower(strings.TrimSpace(line)) {
+		case "y", "yes":
+		default:
+			fmt.Println("Cancelled.")
+			return nil
+		}
+	}
+	if err := Delete(p.Name); err != nil {
+		return err
+	}
+	fmt.Printf("Deleted %s.\n", p.Name)
 	return nil
 }

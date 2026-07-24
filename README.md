@@ -42,6 +42,10 @@ cd claude-code-profiles
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
 | `ccswitch use work` | pin the current shell to a profile (see below) |
 | `ccswitch usage` | show each account's rate-limit usage |
+| `ccswitch new work` | create an empty profile from the CLI |
+| `ccswitch import work` | copy the current `~/.claude` into a new profile |
+| `ccswitch rename old new` | rename a profile |
+| `ccswitch rm work` | delete a profile (asks first; `-y` skips) |
 | `ccswitch list` | print profiles |
 | `ccswitch current` | print the profile this shell is set to |
 | `ccswitch where work` | print a profile's config directory |
@@ -51,7 +55,9 @@ cd claude-code-profiles
 copies your existing `~/.claude` and `~/.claude.json`, so you keep settings, MCP
 servers and history). Press `n` to add each further account — a new profile
 starts empty and runs Claude Code's normal login flow the first time you launch
-it.
+it. Everything the picker keys do is also a plain command (`new`, `import`,
+`rename`, `rm`), so setup scripts and dotfiles can manage profiles without the
+UI.
 
 **In the picker:** press `/` to filter profiles by name or email, `1`–`9` to
 jump straight to one, and `↑↓`/`⏎` to move and launch. The row your current
