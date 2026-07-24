@@ -42,6 +42,7 @@ cd claude-code-profiles
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
 | `ccswitch use work` | pin the current shell to a profile (see below) |
 | `ccswitch usage` | show each account's rate-limit usage |
+| `ccswitch sync --from work` | copy shared config into your other profiles (see below) |
 | `ccswitch new work` | create an empty profile from the CLI |
 | `ccswitch import work` | copy the current `~/.claude` into a new profile |
 | `ccswitch rename old new` | rename a profile |
@@ -92,6 +93,30 @@ The picker tags that shell's row `◂ this shell`, `ccswitch current` names it,
 and `Invoke-Expression (ccswitch use --unset)` (or `eval "$(ccswitch use
 --unset)"`) unpins the shell again. Auto-detection covers PowerShell and POSIX
 shells; pass `--shell pwsh|cmd|bash|fish` to override.
+
+### Share config between profiles
+
+Isolation is the point for credentials — it's also why a second account starts
+with none of your setup. `ccswitch sync` copies the parts that aren't
+account-specific from one profile into the others:
+
+```powershell
+ccswitch sync --from work                      # into every other profile
+ccswitch sync --from work --to personal,side   # or just these
+ccswitch sync --from work --only settings,mcp  # or just these parts
+ccswitch sync --from work -n                   # preview, write nothing
+```
+
+It always prints what it would write and asks before doing it (`-y` skips the
+prompt). The parts it knows about are `settings` (`settings.json`), `claude-md`
+(`CLAUDE.md`), `commands`, `agents`, `skills`, `output-styles`, `hooks`, and
+`mcp` — your MCP servers, merged into each target's `.claude.json` so that
+file's own account identity, project state and history stay intact.
+
+Credentials, history and per-machine caches aren't on that list and can't be
+synced, so this never moves a login. Directories are merged, not mirrored: a
+file only the target has is left alone. It's a copy, not a symlink — run it
+again after you change something you want shared.
 
 ## How it works
 

@@ -22,6 +22,10 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
                            eval it, e.g. Invoke-Expression (ccswitch use work))
   ccswitch use --unset     print the command that unpins this shell
   ccswitch usage           show each account's rate-limit usage
+  ccswitch sync --from <name>
+                           copy shared config (settings, CLAUDE.md, commands,
+                           agents, skills, MCP servers) into your other
+                           profiles; --to a,b, --only <items>, -n to preview
   ccswitch new <name>      create an empty profile (sign in on first launch)
   ccswitch import <name>   copy the current ~/.claude into a new profile
   ccswitch rename <a> <b>  rename a profile
@@ -58,6 +62,8 @@ func run(args []string) error {
 		return cmdUse(args[1:])
 	case "usage", "limits":
 		return cmdUsage()
+	case "sync":
+		return cmdSync(args[1:])
 	case "new", "add", "create":
 		return cmdNew(args[1:])
 	case "import":
@@ -124,6 +130,22 @@ func cmdRun(args []string) error {
 		return err
 	}
 	return nil
+}
+
+// confirm asks a yes/no question on the terminal. Anything other than y/yes —
+// including EOF, so a piped-in run doesn't silently proceed — means no.
+func confirm(question string) bool {
+	fmt.Print(question)
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		fmt.Println()
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true
+	}
+	return false
 }
 
 func asExitError(err error, target **exec.ExitError) bool {
@@ -243,11 +265,8 @@ func cmdRm(args []string) error {
 		return err
 	}
 	if !yes {
-		fmt.Printf("Delete profile %q and its saved login? This can't be undone. [y/N] ", p.Name)
-		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		switch strings.ToLower(strings.TrimSpace(line)) {
-		case "y", "yes":
-		default:
+		q := fmt.Sprintf("Delete profile %q and its saved login? This can't be undone. [y/N] ", p.Name)
+		if !confirm(q) {
 			fmt.Println("Cancelled.")
 			return nil
 		}
