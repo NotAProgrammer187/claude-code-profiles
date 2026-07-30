@@ -97,15 +97,25 @@ func splitLine(line string) []string {
 // completeCommands is what we offer for the first word — the primary names
 // only, so the list reads like the help text rather than every alias.
 var completeCommands = []string{
-	"run", "use", "usage", "sync", "link", "unlink", "links", "new", "import",
-	"rename", "rm", "list", "current", "where", "init", "upgrade", "version",
-	"help",
+	"run", "use", "usage", "sync", "defaults", "link", "unlink", "links", "new",
+	"import", "rename", "rm", "list", "current", "where", "init", "upgrade",
+	"version", "help",
 }
 
 var completeFlags = map[string][]string{
 	"use":  {"--unset", "--shell"},
 	"sync": {"--from", "--to", "--only", "--dry-run", "--yes"},
 	"rm":   {"-y"},
+}
+
+var completeDefaultsSubs = []string{"set", "unset", "apply"}
+
+// Settings you'd plausibly want identical everywhere. Completing a key is a
+// convenience, not a restriction — any top-level settings.json key is accepted.
+var completeDefaultsKeys = []string{
+	"agentPushNotifEnabled", "autoCompactEnabled", "autoUpdates",
+	"autoUploadSessions", "editorMode", "inputNeededNotifEnabled", "model",
+	"remoteControlAtStartup", "theme", "todoFeatureEnabled", "tui", "verbose",
 }
 
 var completeShells = []string{"pwsh", "cmd", "bash", "zsh", "fish"}
@@ -147,6 +157,20 @@ func completions(words, profiles []string) []string {
 	}
 
 	switch cmd {
+	case "defaults":
+		// `defaults <sub>`, then a key for set/unset or profiles for apply.
+		// `set`'s value is yours to type — we don't know what it should be.
+		if len(prior) == 1 {
+			return matching(completeDefaultsSubs, prefix)
+		}
+		switch strings.ToLower(prior[1]) {
+		case "set", "unset", "rm", "remove":
+			if len(prior) == 2 {
+				return matching(completeDefaultsKeys, prefix)
+			}
+		case "apply":
+			return matching(profiles, prefix)
+		}
 	case "link":
 		// `link <profile> [dir]`: after the profile the argument is a
 		// directory, which the shell's own path completion does better.

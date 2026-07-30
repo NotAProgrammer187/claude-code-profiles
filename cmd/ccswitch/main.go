@@ -29,6 +29,15 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
                            copy shared config (settings, CLAUDE.md, commands,
                            agents, skills, MCP servers) into your other
                            profiles; --to a,b, --only <items>, -n to preview
+  ccswitch defaults        show the settings shared by every profile
+  ccswitch defaults set <key> <value>
+                           share one settings.json key with every profile, now
+                           and on each profile's first login, e.g.
+                           ccswitch defaults set remoteControlAtStartup false
+  ccswitch defaults unset <key>
+                           stop sharing it (profiles keep what they have)
+  ccswitch defaults apply [name...]
+                           write the shared settings into profiles now
   ccswitch link <name>     use this profile for the current directory and
                            everything under it
   ccswitch unlink          drop this directory's link
@@ -72,6 +81,8 @@ func run(args []string) error {
 		return cmdUsage()
 	case "sync":
 		return cmdSync(args[1:])
+	case "defaults":
+		return cmdDefaults(args[1:])
 	case "link":
 		return cmdLink(args[1:])
 	case "unlink":
@@ -141,6 +152,9 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Before the process starts, so Claude Code reads the shared settings on
+	// this run rather than the next one.
+	applyDefaultsOnLaunch(p)
 	cmd, err := Command(p, rest)
 	if err != nil {
 		return err

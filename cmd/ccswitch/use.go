@@ -67,6 +67,7 @@ func cmdUse(args []string) error {
 	if err != nil {
 		return err
 	}
+	applyDefaultsOnLaunch(p)
 	TouchProfile(p.Name)
 	emit(sh, assignment(sh, p.Dir), "ccswitch use "+p.Name)
 	return nil

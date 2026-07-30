@@ -357,6 +357,7 @@ func (m model) launchSelected() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	p := vis[m.cursor]
+	m.notice = defaultsNoticeOnLaunch(p)
 	cmd, err := Command(p, nil)
 	if err != nil {
 		m.err = err
@@ -424,6 +425,9 @@ func (m model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.reload()
+			// Seed the empty profile before the login flow, so preferences
+			// you share are already in place for its first session.
+			m.notice = defaultsNoticeOnLaunch(p)
 			// Launch straight into it so Claude Code runs its login flow.
 			cmd, err := Command(p, nil)
 			if err != nil {

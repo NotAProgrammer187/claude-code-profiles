@@ -26,7 +26,7 @@ type syncItem struct {
 }
 
 var syncItems = []syncItem{
-	{Name: "settings", Path: "settings.json"},
+	{Name: "settings", Path: settingsFile},
 	{Name: "claude-md", Path: "CLAUDE.md"},
 	{Name: "commands", Path: "commands", Dir: true},
 	{Name: "agents", Path: "agents", Dir: true},

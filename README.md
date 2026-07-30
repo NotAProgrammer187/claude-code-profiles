@@ -48,6 +48,8 @@ cd claude-code-profiles
 | `ccswitch links` | list linked directories |
 | `ccswitch usage` | show each account's rate-limit usage |
 | `ccswitch sync --from work` | copy shared config into your other profiles (see below) |
+| `ccswitch defaults` | show the settings every profile shares (see below) |
+| `ccswitch defaults set remoteControlAtStartup false` | share one setting with every profile, now and on first login |
 | `ccswitch new work` | create an empty profile from the CLI |
 | `ccswitch import work` | copy the current `~/.claude` into a new profile |
 | `ccswitch rename old new` | rename a profile |
@@ -147,6 +149,41 @@ Credentials, history and per-machine caches aren't on that list and can't be
 synced, so this never moves a login. Directories are merged, not mirrored: a
 file only the target has is left alone. It's a copy, not a symlink — run it
 again after you change something you want shared.
+
+### Settings that follow you: `ccswitch defaults`
+
+`sync` is a one-off copy, which is the wrong shape for preferences you never
+want to think about again. Turn Remote Control off in one profile and the next
+account you sign in to has it on, because an absent setting means "default" —
+and a fresh profile has no settings at all. Share the key instead:
+
+```powershell
+ccswitch defaults set remoteControlAtStartup false
+ccswitch defaults                  # what's shared, and which profiles differ
+ccswitch defaults apply            # write it into every profile now
+ccswitch defaults unset theme      # stop sharing (profiles keep what they have)
+```
+
+Shared keys live in `~/.ccswitch/settings.json` and are written into a profile's
+`settings.json` every time ccswitch launches or pins it — including the first
+launch of a brand-new profile, before Claude Code's login flow runs. So the
+setting is already in place for the session where you'd otherwise notice it was
+missing. Setting one applies it everywhere immediately; after that, launches
+that change nothing say nothing.
+
+Any top-level `settings.json` key works (`remoteControlAtStartup`,
+`autoUploadSessions`, `theme`, `model`, `verbose`, …). Values are read as JSON
+when they parse as JSON and as strings otherwise, so `false` is a boolean and
+`dark` is `"dark"`; quote a block to share it whole:
+`ccswitch defaults set env '{"FOO":"bar"}'`.
+
+Two things worth knowing. A shared key stops being a per-profile choice — change
+it in one profile's `/config` and the next launch puts the shared value back,
+which is what sharing means; `unset` it if you want that key to vary again. And
+only the keys you name are touched: everything else in each profile's
+`settings.json` — its model, its permissions, its MCP allowances — is left
+alone. If a profile's `settings.json` can't be parsed, ccswitch says so and
+writes nothing rather than replacing it.
 
 ## How it works
 

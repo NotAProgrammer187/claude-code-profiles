@@ -29,6 +29,12 @@ func TestCompletions(t *testing.T) {
 		{"sync source", []string{"sync", "--from", "p"}, []string{"personal"}},
 		{"sync items", []string{"sync", "--only", "s"}, []string{"settings", "skills"}},
 		{"init shells", []string{"init", "z"}, []string{"zsh"}},
+		{"defaults subcommands", []string{"defaults", ""}, completeDefaultsSubs},
+		{"defaults key", []string{"defaults", "set", "remote"}, []string{"remoteControlAtStartup"}},
+		{"defaults unset takes a key too", []string{"defaults", "unset", "the"}, []string{"theme"}},
+		// A value is yours to type: we have no idea what it should be.
+		{"defaults value", []string{"defaults", "set", "theme", ""}, nil},
+		{"defaults apply takes profiles", []string{"defaults", "apply", "p"}, []string{"personal"}},
 		{"profile after link", []string{"link", "p"}, []string{"personal"}},
 		{"directory after link is the shell's job", []string{"link", "work", ""}, nil},
 		{"nothing to offer", []string{"list", ""}, nil},
