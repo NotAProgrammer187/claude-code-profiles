@@ -15,7 +15,8 @@ const version = "0.1.4"
 const usage = `ccswitch — run Claude Code as any of your accounts, without logging out
 
   ccswitch                 open the picker
-  ccswitch run <name>      launch straight into a profile
+  ccswitch run <name>      launch straight into a profile ('run' with no name
+                           uses the profile this directory is linked to)
   ccswitch run <name> -- --resume
                            extra args after -- go to claude
   ccswitch use <name>      pin this shell to a profile (prints the command;
@@ -28,6 +29,10 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
                            copy shared config (settings, CLAUDE.md, commands,
                            agents, skills, MCP servers) into your other
                            profiles; --to a,b, --only <items>, -n to preview
+  ccswitch link <name>     use this profile for the current directory and
+                           everything under it
+  ccswitch unlink          drop this directory's link
+  ccswitch links           list linked directories
   ccswitch new <name>      create an empty profile (sign in on first launch)
   ccswitch import <name>   copy the current ~/.claude into a new profile
   ccswitch rename <a> <b>  rename a profile
@@ -67,6 +72,12 @@ func run(args []string) error {
 		return cmdUsage()
 	case "sync":
 		return cmdSync(args[1:])
+	case "link":
+		return cmdLink(args[1:])
+	case "unlink":
+		return cmdUnlink(args[1:])
+	case "links":
+		return cmdLinks()
 	case "init":
 		return cmdInit(args[1:])
 	case "complete":
@@ -106,13 +117,24 @@ func interactive() error {
 }
 
 func cmdRun(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: ccswitch run <profile> [-- claude args...]")
+	// No profile named: fall back to the one this directory is linked to, so
+	// `ccswitch run` inside a linked tree just works.
+	var name string
+	rest := args
+	if len(args) > 0 && args[0] != "--" {
+		name, rest = args[0], args[1:]
 	}
-	name := args[0]
-	rest := args[1:]
 	if len(rest) > 0 && rest[0] == "--" {
 		rest = rest[1:]
+	}
+	if name == "" {
+		linked, source, ok := CurrentDirProfile()
+		if !ok {
+			return fmt.Errorf("usage: ccswitch run <profile> [-- claude args...]\n" +
+				"       or link this directory once: ccswitch link <profile>")
+		}
+		name = linked
+		fmt.Fprintf(os.Stderr, "ccswitch: %s (linked from %s)\n", name, source)
 	}
 
 	p, err := Find(name)
@@ -194,6 +216,11 @@ func cmdCurrent() error {
 		return nil
 	}
 	fmt.Println("no active profile — CLAUDE_CONFIG_DIR is not set in this shell")
+	// The shell isn't pinned, but this directory may still decide what a bare
+	// `ccswitch run` would launch.
+	if name, source, ok := CurrentDirProfile(); ok {
+		fmt.Printf("this directory is linked to %s (from %s)\n", name, source)
+	}
 	return nil
 }
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -90,6 +92,7 @@ type model struct {
 	notice    string
 	err       error
 	active    string // profile this shell's CLAUDE_CONFIG_DIR points at, if any
+	linked    string // profile this directory is linked to, if any
 	filter    string // current filter query
 	filtering bool   // true while the filter input is capturing keys
 	width     int
@@ -145,6 +148,16 @@ func newModel() model {
 
 	m := model{prompt: ti, width: 78, height: 24, usage: map[string]*Usage{}}
 	m.reload()
+	// Open on the profile this directory belongs to, so the common case is one
+	// keystroke: the highlighted row is already the right account.
+	if m.linked != "" {
+		for i, p := range m.profiles {
+			if strings.EqualFold(p.Name, m.linked) {
+				m.cursor = i
+				break
+			}
+		}
+	}
 	return m
 }
 
@@ -156,6 +169,7 @@ func (m *model) reload() {
 	}
 	m.profiles = ps
 	m.active = ActiveProfileName(ps)
+	m.linked, _, _ = CurrentDirProfile()
 	m.clampCursor()
 }
 
@@ -271,6 +285,14 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m2.prompt.CursorEnd()
 		return m2, cmd
 
+	case "l":
+		// Link this directory to the highlighted profile, or unlink if it's
+		// already the one this directory resolves to.
+		if len(vis) == 0 {
+			return m, nil
+		}
+		return m.toggleLink(vis[m.cursor])
+
 	case "d":
 		if len(vis) == 0 {
 			return m, nil
@@ -344,6 +366,33 @@ func (m model) launchSelected() (tea.Model, tea.Cmd) {
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 		return execDoneMsg{err}
 	})
+}
+
+// toggleLink binds the current directory to p, or unbinds it when the directory
+// already resolves to p. One key does both because the row's tag tells you
+// which way it will go.
+func (m model) toggleLink(p Profile) (tea.Model, tea.Cmd) {
+	wd, err := os.Getwd()
+	if err != nil {
+		m.err = err
+		return m, nil
+	}
+	if strings.EqualFold(m.linked, p.Name) {
+		l, err := RemoveLink(wd)
+		if err != nil {
+			// The link may come from a parent directory or a .ccswitch file,
+			// and this key can only undo one made here.
+			m.err = err
+		} else {
+			m.notice = "Unlinked " + shortPath(l.Dir)
+		}
+	} else if l, err := SetLink(wd, p.Name); err != nil {
+		m.err = err
+	} else {
+		m.notice = shortPath(l.Dir) + " → " + l.Profile
+	}
+	m.reload()
+	return m, nil
 }
 
 func (m model) openPrompt(k promptKind, label string) (tea.Model, tea.Cmd) {
@@ -525,7 +574,8 @@ func (m model) View() string {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(profileRow(i, p, sel, p.Name == m.active, m.usage[p.Name]))
+		b.WriteString(profileRow(i, p, sel, p.Name == m.active,
+			strings.EqualFold(p.Name, m.linked), m.usage[p.Name]))
 	}
 
 	// Modal views take over the area below the list.
@@ -580,7 +630,7 @@ func statusDot(p Profile) string {
 
 // profileRow renders a two-line card:  [bar] [n] [dot] name  email
 //                                                  plan · status · usage · used · org
-func profileRow(i int, p Profile, sel, active bool, u *Usage) string {
+func profileRow(i int, p Profile, sel, active, linked bool, u *Usage) string {
 	bar := " "
 	name := sName
 	if sel {
@@ -593,8 +643,12 @@ func profileRow(i int, p Profile, sel, active bool, u *Usage) string {
 	}
 	head := "  " + bar + " " + num + " " + statusDot(p) + " " +
 		name.Render(pad(p.Name, 16)) + sMeta.Render(p.Label())
-	if active {
+	// The shell's pin is the stronger statement, so it wins the one tag slot.
+	switch {
+	case active:
 		head += sActive.Render("  ◂ this shell")
+	case linked:
+		head += sActive.Render("  ◂ this folder")
 	}
 	// Indent the subline to sit under the name (8 cols of prefix above).
 	sub := strings.Repeat(" ", 8) + sMeta.Render(subline(p, u))
@@ -692,7 +746,8 @@ func windowPart(label string, w *UsageWindow) string {
 func help() string {
 	pairs := [][2]string{
 		{"↑↓", "move"}, {"/", "filter"}, {"⏎", "launch"}, {"n", "new"},
-		{"i", "import"}, {"r", "rename"}, {"d", "delete"}, {"q", "quit"},
+		{"i", "import"}, {"r", "rename"}, {"l", "link dir"}, {"d", "delete"},
+		{"q", "quit"},
 	}
 	return renderKeys(pairs)
 }
@@ -745,6 +800,21 @@ func plural(n int, word string) string {
 		return fmt.Sprintf("%d %s", n, word)
 	}
 	return fmt.Sprintf("%d %ss", n, word)
+}
+
+// shortPath abbreviates the home directory to ~, so a notice fits the row.
+func shortPath(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	if rel, err := filepath.Rel(home, p); err == nil && !strings.HasPrefix(rel, "..") {
+		if rel == "." {
+			return "~"
+		}
+		return "~" + string(filepath.Separator) + rel
+	}
+	return p
 }
 
 func clamp(v, lo, hi int) int {

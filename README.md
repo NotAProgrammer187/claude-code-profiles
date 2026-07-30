@@ -39,9 +39,13 @@ cd claude-code-profiles
 |---|---|
 | `ccswitch` | open the picker |
 | `ccswitch run work` | launch straight into a profile |
+| `ccswitch run` | launch the profile this directory is linked to (see below) |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
 | `ccswitch use work` | pin the current shell to a profile (see below) |
 | `ccswitch init pwsh` | shell integration: `use` applies itself, plus tab completion |
+| `ccswitch link work` | use this profile for the current directory and below |
+| `ccswitch unlink` | drop this directory's link |
+| `ccswitch links` | list linked directories |
 | `ccswitch usage` | show each account's rate-limit usage |
 | `ccswitch sync --from work` | copy shared config into your other profiles (see below) |
 | `ccswitch new work` | create an empty profile from the CLI |

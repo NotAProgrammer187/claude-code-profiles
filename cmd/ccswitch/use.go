@@ -50,8 +50,17 @@ func cmdUse(args []string) error {
 		emit(sh, clearAssignment(sh), "ccswitch use --unset")
 		return nil
 	}
+	// Like `run`, bare `ccswitch use` takes the profile this directory is
+	// linked to. The note goes to stderr so an eval only ever sees the
+	// assignment on stdout.
 	if name == "" {
-		return fmt.Errorf("usage: ccswitch use <profile> | ccswitch use --unset")
+		linked, source, ok := CurrentDirProfile()
+		if !ok {
+			return fmt.Errorf("usage: ccswitch use <profile> | ccswitch use --unset\n" +
+				"       or link this directory once: ccswitch link <profile>")
+		}
+		name = linked
+		fmt.Fprintf(os.Stderr, "ccswitch: %s (linked from %s)\n", name, source)
 	}
 
 	p, err := Find(name)

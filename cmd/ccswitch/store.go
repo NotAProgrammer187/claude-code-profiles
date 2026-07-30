@@ -102,6 +102,8 @@ func ValidName(s string) error {
 
 type state struct {
 	LastUsed map[string]time.Time `json:"lastUsed"`
+	// Links binds a directory to a profile; see link.go.
+	Links map[string]string `json:"links,omitempty"`
 }
 
 func statePath() (string, error) {
@@ -320,6 +322,7 @@ func Delete(name string) error {
 	if err := os.RemoveAll(p.Dir); err != nil {
 		return err
 	}
+	dropLinksTo(p.Name)
 	st := loadState()
 	delete(st.LastUsed, name)
 	return st.save()
@@ -344,6 +347,7 @@ func Rename(old, newName string) error {
 	if err := os.Rename(p.Dir, target); err != nil {
 		return err
 	}
+	renameLinksTo(p.Name, newName)
 	st := loadState()
 	if t, ok := st.LastUsed[old]; ok {
 		st.LastUsed[newName] = t

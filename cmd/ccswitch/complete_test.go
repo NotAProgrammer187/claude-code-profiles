@@ -16,7 +16,7 @@ func TestCompletions(t *testing.T) {
 	}{
 		{"nothing typed yet", nil, completeCommands},
 		{"partial command", []string{"ru"}, []string{"run"}},
-		{"command prefix matching several", []string{"u"}, []string{"use", "usage", "upgrade"}},
+		{"command prefix matching several", []string{"u"}, []string{"use", "usage", "unlink", "upgrade"}},
 		{"profile after run", []string{"run", ""}, testProfiles},
 		// Profile names are matched case-insensitively elsewhere, so a
 		// lowercase prefix has to find an upper-case profile.
@@ -29,6 +29,8 @@ func TestCompletions(t *testing.T) {
 		{"sync source", []string{"sync", "--from", "p"}, []string{"personal"}},
 		{"sync items", []string{"sync", "--only", "s"}, []string{"settings", "skills"}},
 		{"init shells", []string{"init", "z"}, []string{"zsh"}},
+		{"profile after link", []string{"link", "p"}, []string{"personal"}},
+		{"directory after link is the shell's job", []string{"link", "work", ""}, nil},
 		{"nothing to offer", []string{"list", ""}, nil},
 		{"unknown command", []string{"frobnicate", ""}, nil},
 	}
