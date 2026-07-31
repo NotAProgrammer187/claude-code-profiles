@@ -47,6 +47,7 @@ cd claude-code-profiles
 | `ccswitch unlink` | drop this directory's link |
 | `ccswitch links` | list linked directories |
 | `ccswitch usage` | show each account's rate-limit usage |
+| `ccswitch usage --watch` | live usage panel to park beside Claude Code (see below) |
 | `ccswitch sync --from work` | copy shared config into your other profiles (see below) |
 | `ccswitch defaults` | show the settings every profile shares (see below) |
 | `ccswitch defaults set remoteControlAtStartup false` | share one setting with every profile, now and on first login |
@@ -78,6 +79,39 @@ the same numbers in the terminal. This reads the endpoint Claude Code's own
 `/usage` screen uses, with each profile's existing token; it's display-only
 (nothing is written or refreshed), and if the endpoint ever changes shape the
 rows simply omit it.
+
+### A usage panel beside Claude Code
+
+`ccswitch usage` answers the question once. `ccswitch usage --watch` keeps
+answering it: open a second terminal next to Claude Code, run it there, and
+leave it. Every signed-in account gets a meter for its 5-hour and weekly
+windows, with the reset time under each.
+
+![ccswitch usage --watch — a live rate-limit panel](docs/usage-watch.png)
+
+Bars turn amber past 70% and red past 90% — the same thresholds the picker
+uses, so the two views never disagree about what counts as getting close. The
+account your shell is pinned to is tagged `◂ shell`; a profile this directory
+is linked to is tagged `◂ here`. Opus gets its own meter only once you've
+actually used it, so plans without a separate Opus window don't show a
+permanent 0%.
+
+It refreshes every minute; `--every 30s` changes that, with a 15-second floor
+because the endpoint is undocumented and shared with Claude Code itself. `r`
+refreshes now, `q` quits. Narrow the window or shorten it and the panel drops
+to one line per window automatically, so it stays readable in a thin column.
+
+Profiles added while it's running are picked up on the next refresh — no
+restart needed. Like the rest of the usage code it's display-only: each
+profile's existing token is sent, nothing is written back, and an account whose
+fetch fails shows a dim line instead of taking the panel down.
+
+The character at the top idles on its own clock — it sits still most of the
+time, glances around occasionally and stretches now and then, slowly enough to
+sit in the corner of your eye without asking for attention. To put your own art
+there instead, fill in `watchArt` in `cmd/ccswitch/watch.go` — one string per
+line, centred in the accent colour, with any line too wide for the panel
+dropped rather than wrapped.
 
 ### Pin a shell to a profile
 

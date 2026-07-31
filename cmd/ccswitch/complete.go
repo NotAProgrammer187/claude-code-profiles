@@ -103,9 +103,10 @@ var completeCommands = []string{
 }
 
 var completeFlags = map[string][]string{
-	"use":  {"--unset", "--shell"},
-	"sync": {"--from", "--to", "--only", "--dry-run", "--yes"},
-	"rm":   {"-y"},
+	"use":   {"--unset", "--shell"},
+	"sync":  {"--from", "--to", "--only", "--dry-run", "--yes"},
+	"usage": {"--watch", "--every"},
+	"rm":    {"-y"},
 }
 
 var completeDefaultsSubs = []string{"set", "unset", "apply"}

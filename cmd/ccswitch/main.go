@@ -25,6 +25,8 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch init <shell>    print shell integration: makes 'use' apply itself and
                            adds tab completion (pwsh, bash, zsh, fish)
   ccswitch usage           show each account's rate-limit usage
+  ccswitch usage --watch   live usage panel to park beside Claude Code
+                           (--every 30s to change the refresh interval)
   ccswitch sync --from <name>
                            copy shared config (settings, CLAUDE.md, commands,
                            agents, skills, MCP servers) into your other
@@ -78,7 +80,7 @@ func run(args []string) error {
 	case "use":
 		return cmdUse(args[1:])
 	case "usage", "limits":
-		return cmdUsage()
+		return cmdUsage(args[1:])
 	case "sync":
 		return cmdSync(args[1:])
 	case "defaults":

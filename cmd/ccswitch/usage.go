@@ -113,8 +113,57 @@ func pct(v float64) int {
 }
 
 // cmdUsage prints every profile's rate-limit standing, fetching them all
-// concurrently so ten profiles cost one round-trip, not ten.
-func cmdUsage() error {
+// concurrently so ten profiles cost one round-trip, not ten. With --watch it
+// hands over to the live panel in watch.go instead.
+func cmdUsage(args []string) error {
+	watch := false
+	every := watchDefaultEvery
+
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		next := func(flag string) (string, error) {
+			i++
+			if i >= len(args) {
+				return "", fmt.Errorf("%s needs a value", flag)
+			}
+			return args[i], nil
+		}
+		var raw string
+		var err error
+		switch {
+		case a == "--watch" || a == "-w":
+			watch = true
+		case a == "--every":
+			raw, err = next("--every")
+		case strings.HasPrefix(a, "--every="):
+			raw = strings.TrimPrefix(a, "--every=")
+		case strings.HasPrefix(a, "-"):
+			return fmt.Errorf("unknown flag %q (usage: ccswitch usage [--watch] [--every 60s])", a)
+		default:
+			return fmt.Errorf("unexpected argument %q", a)
+		}
+		if err != nil {
+			return err
+		}
+		if raw != "" {
+			d, err := time.ParseDuration(raw)
+			if err != nil {
+				return fmt.Errorf("--every wants a duration like 30s or 2m: %w", err)
+			}
+			// The endpoint is undocumented and shared with Claude Code itself;
+			// polling it harder than this is rude and tells you nothing new.
+			if d < watchMinEvery {
+				return fmt.Errorf("--every is capped at %s minimum", watchMinEvery)
+			}
+			every = d
+			watch = true
+		}
+	}
+
+	if watch {
+		return runUsageWatch(every)
+	}
+
 	ps, err := List()
 	if err != nil {
 		return err
