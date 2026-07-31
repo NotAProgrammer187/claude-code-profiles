@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,6 +41,56 @@ func assetName() (string, error) {
 	return "", fmt.Errorf("no prebuilt binary for %s/%s — build from source instead", runtime.GOOS, runtime.GOARCH)
 }
 
+// A single overall timeout is the wrong shape for a download. It can't tell a
+// slow connection from a stalled one, so a 7 MB binary on a thin link fails at
+// the deadline however healthy the transfer was — which is exactly what
+// happened on a real upgrade. Bound the parts that should always be quick
+// (connect, TLS, waiting for headers) and let the body take as long as it needs
+// while it's still making progress; stallTimeout catches the case where it
+// isn't.
+const (
+	connectTimeout = 15 * time.Second
+	headerTimeout  = 30 * time.Second
+	stallTimeout   = 60 * time.Second
+)
+
+// httpClient bounds setup but not transfer. overall may be zero for "no total
+// deadline", which is what a download of unknown size on an unknown link wants.
+func httpClient(overall time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: overall,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   connectTimeout,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   connectTimeout,
+			ResponseHeaderTimeout: headerTimeout,
+			ExpectContinueTimeout: time.Second,
+		},
+	}
+}
+
+// progressReader notes when bytes last arrived, so a watchdog can tell a slow
+// download from a dead one.
+type progressReader struct {
+	r    io.Reader
+	last atomic.Int64 // unix nanos
+}
+
+func (p *progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	if n > 0 {
+		p.last.Store(time.Now().UnixNano())
+	}
+	return n, err
+}
+
+func (p *progressReader) idle() time.Duration {
+	return time.Since(time.Unix(0, p.last.Load()))
+}
+
 type ghRelease struct {
 	TagName string `json:"tag_name"`
 	Assets  []struct {
@@ -55,8 +108,8 @@ func latestRelease() (ghRelease, error) {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ccswitch-upgrade")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	// Metadata is a few KB, so a total deadline is fine here.
+	resp, err := httpClient(30 * time.Second).Do(req)
 	if err != nil {
 		return rel, err
 	}
@@ -119,8 +172,11 @@ func cmdUpgrade() error {
 
 	// Swap the new binary into place. Windows can't overwrite a running exe,
 	// so move the current one aside first; it's removed on the next launch.
-	old := self + ".old"
-	_ = os.Remove(old)
+	old, err := asidePath(self)
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
 	if err := os.Rename(self, old); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("could not move the current binary aside: %w", err)
@@ -139,23 +195,58 @@ func cmdUpgrade() error {
 	return nil
 }
 
-// cleanupOldBinary removes the previous binary left behind by a Windows upgrade.
-// Safe to call on every start; it does nothing when there's nothing to clean.
+// asidePath picks a free name to move the running binary to.
+//
+// The obvious `.old` isn't always available: on Windows another running copy of
+// ccswitch keeps its own binary open, and an open file can be neither deleted
+// nor renamed over. The old code ignored the failed delete and then renamed
+// onto the locked file anyway, so the upgrade died with "Access is denied" and
+// blamed the current binary rather than the leftover. Fall back to numbered
+// names instead — each gets cleaned up whenever the copy holding it exits.
+func asidePath(self string) (string, error) {
+	candidates := []string{self + ".old"}
+	for i := 1; i < 20; i++ {
+		candidates = append(candidates, fmt.Sprintf("%s.old%d", self, i))
+	}
+	for _, p := range candidates {
+		// Removable or absent both mean the name is ours to take.
+		if err := os.Remove(p); err == nil || os.IsNotExist(err) {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("no free name to move the current binary aside — close other running ccswitch processes and try again")
+}
+
+// cleanupOldBinary removes binaries left behind by earlier upgrades. Safe to
+// call on every start: names still held open by another running copy simply
+// fail to delete and are retried next time.
 func cleanupOldBinary() {
-	if self, err := os.Executable(); err == nil {
-		_ = os.Remove(self + ".old")
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	matches, err := filepath.Glob(self + ".old*")
+	if err != nil {
+		return // only returns ErrBadPattern, which self can't produce in practice
+	}
+	for _, p := range matches {
+		_ = os.Remove(p)
 	}
 }
 
 func download(url, dst, template string) error {
-	req, err := http.NewRequest("GET", url, nil)
+	// The context is what the stall watchdog cancels; without it a transfer
+	// that goes quiet mid-body would hang until the process is killed.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("User-Agent", "ccswitch-upgrade")
 
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
+	resp, err := httpClient(0).Do(req)
 	if err != nil {
 		return err
 	}
@@ -173,10 +264,42 @@ func download(url, dst, template string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, resp.Body); err != nil {
+
+	pr := &progressReader{r: resp.Body}
+	pr.last.Store(time.Now().UnixNano())
+	stalled := watchStall(ctx, cancel, pr)
+
+	if _, err := io.Copy(out, pr); err != nil {
 		out.Close()
 		_ = os.Remove(dst)
+		if stalled.Load() {
+			return fmt.Errorf("download stalled — no data for %s", stallTimeout)
+		}
 		return err
 	}
 	return out.Close()
+}
+
+// watchStall cancels the request if the body stops producing bytes for
+// stallTimeout, and reports whether that's why it was cancelled — otherwise the
+// failure surfaces as a bare "context canceled" that explains nothing.
+func watchStall(ctx context.Context, cancel context.CancelFunc, pr *progressReader) *atomic.Bool {
+	var stalled atomic.Bool
+	go func() {
+		t := time.NewTicker(stallTimeout / 4)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if pr.idle() > stallTimeout {
+					stalled.Store(true)
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return &stalled
 }
