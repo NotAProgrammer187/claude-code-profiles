@@ -2,6 +2,7 @@
 /ccswitch
 /ccswitch.exe
 *.exe
+*.exe~
 *.syso
 dist/
 

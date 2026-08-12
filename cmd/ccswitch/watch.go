@@ -114,12 +114,21 @@ var sTrack = lipgloss.NewStyle().Foreground(cFaint)
 var sClawd = lipgloss.NewStyle().Foreground(
 	lipgloss.AdaptiveColor{Light: "#C1603F", Dark: "#D97757"})
 
+// watchAlertAt is when the panel speaks up rather than just turning a bar red
+// — the same 90% at which meterStyle goes red, so what you hear and what you
+// see never disagree.
+const watchAlertAt = 90.0
+
 type watchModel struct {
 	profiles []Profile
 	usage    map[string]*Usage
 	errs     map[string]string
 	active   string
 	linked   string
+
+	// alerted remembers, per profile window, whether the last fetch was at or
+	// above watchAlertAt — the state machine behind alerting once per crossing.
+	alerted map[string]bool
 
 	every   time.Duration
 	updated time.Time
@@ -156,11 +165,12 @@ func runUsageWatch(every time.Duration) error {
 
 func newWatchModel(every time.Duration) watchModel {
 	m := watchModel{
-		usage:  map[string]*Usage{},
-		errs:   map[string]string{},
-		every:  every,
-		width:  40,
-		height: 24,
+		usage:   map[string]*Usage{},
+		errs:    map[string]string{},
+		alerted: map[string]bool{},
+		every:   every,
+		width:   40,
+		height:  24,
 	}
 	m.reload()
 	return m
@@ -227,18 +237,20 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case watchUsageMsg:
+		var alerts []tea.Cmd
 		if msg.err != "" {
 			m.errs[msg.name] = msg.err
 			delete(m.usage, msg.name)
 		} else {
 			m.usage[msg.name] = msg.u
 			delete(m.errs, msg.name)
+			alerts = m.checkAlerts(msg.name, msg.u)
 		}
 		if m.pending > 0 {
 			m.pending--
 		}
 		m.updated = time.Now()
-		return m, nil
+		return m, tea.Batch(alerts...)
 
 	case clawdTickMsg:
 		m.step++
@@ -262,6 +274,41 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// checkAlerts compares a fresh fetch against the last one and returns a
+// command per window that has just crossed into the red — bell plus a desktop
+// notification, so the panel is useful even when it isn't in view. The
+// first sighting of a window only records where it is: a panel opened on an
+// account already in the red shows red, it doesn't beep at you. A window then
+// has to drop back below the threshold before it can alert again, so one
+// crossing is one alert, not one per refresh.
+func (m watchModel) checkAlerts(name string, u *Usage) []tea.Cmd {
+	var cmds []tea.Cmd
+	for _, w := range []struct {
+		label string
+		win   *UsageWindow
+	}{
+		{"5-hour", u.Session},
+		{"weekly", u.Week},
+		{"weekly Opus", u.Opus},
+	} {
+		if w.win == nil {
+			continue
+		}
+		key := name + "/" + w.label
+		above := w.win.Utilization >= watchAlertAt
+		prev, seen := m.alerted[key]
+		m.alerted[key] = above
+		if above && seen && !prev {
+			label, p := w.label, pct(w.win.Utilization)
+			cmds = append(cmds, func() tea.Msg {
+				alertUsage(name, label, p)
+				return nil
+			})
+		}
+	}
+	return cmds
 }
 
 // ---------------------------------------------------------------------------

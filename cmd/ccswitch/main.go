@@ -19,6 +19,8 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
                            uses the profile this directory is linked to)
   ccswitch run <name> -- --resume
                            extra args after -- go to claude
+  ccswitch run --best      launch the signed-in profile with the most
+                           rate-limit headroom
   ccswitch use <name>      pin this shell to a profile (prints the command;
                            eval it, e.g. Invoke-Expression (ccswitch use work))
   ccswitch use --unset     print the command that unpins this shell
@@ -133,12 +135,28 @@ func cmdRun(args []string) error {
 	// No profile named: fall back to the one this directory is linked to, so
 	// `ccswitch run` inside a linked tree just works.
 	var name string
+	best := false
 	rest := args
-	if len(args) > 0 && args[0] != "--" {
-		name, rest = args[0], args[1:]
+	if len(rest) > 0 && (rest[0] == "--best" || rest[0] == "-b") {
+		best = true
+		rest = rest[1:]
+	}
+	if !best && len(rest) > 0 && rest[0] != "--" {
+		name, rest = rest[0], rest[1:]
+	}
+	if best && len(rest) > 0 && rest[0] != "--" {
+		return fmt.Errorf("--best picks the profile for you — drop %q, or put claude args after --", rest[0])
 	}
 	if len(rest) > 0 && rest[0] == "--" {
 		rest = rest[1:]
+	}
+	if best {
+		chosen, why, err := bestProfile()
+		if err != nil {
+			return err
+		}
+		name = chosen
+		fmt.Fprintf(os.Stderr, "ccswitch: %s has the most headroom (%s)\n", name, why)
 	}
 	if name == "" {
 		linked, source, ok := CurrentDirProfile()

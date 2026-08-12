@@ -98,6 +98,74 @@ func FetchUsage(p Profile) (*Usage, error) {
 	return u, nil
 }
 
+// bestProfile picks the signed-in profile with the most rate-limit headroom
+// and says why, e.g. "5h 12% · 7d 30%". A profile's score is its most-used
+// window — that's the one that will stop you first — and lower wins. Profiles
+// whose usage can't be read are skipped rather than guessed at; List() is
+// most-recently-used first, so a tie goes to the account you know.
+func bestProfile() (string, string, error) {
+	ps, err := List()
+	if err != nil {
+		return "", "", err
+	}
+
+	type res struct {
+		ok    bool
+		score float64
+		why   string
+	}
+	results := make([]res, len(ps))
+	var wg sync.WaitGroup
+	for i, p := range ps {
+		if !p.SignedIn {
+			continue
+		}
+		wg.Add(1)
+		go func(i int, p Profile) {
+			defer wg.Done()
+			u, err := FetchUsage(p)
+			if err != nil {
+				return
+			}
+			score := 0.0
+			var parts []string
+			if w := u.Session; w != nil {
+				if w.Utilization > score {
+					score = w.Utilization
+				}
+				parts = append(parts, fmt.Sprintf("5h %d%%", pct(w.Utilization)))
+			}
+			if w := u.Week; w != nil {
+				if w.Utilization > score {
+					score = w.Utilization
+				}
+				parts = append(parts, fmt.Sprintf("7d %d%%", pct(w.Utilization)))
+			}
+			results[i] = res{ok: true, score: score, why: strings.Join(parts, " · ")}
+		}(i, p)
+	}
+	wg.Wait()
+
+	best := -1
+	for i := range ps {
+		if !results[i].ok {
+			continue
+		}
+		if best < 0 || results[i].score < results[best].score {
+			best = i
+		}
+	}
+	if best < 0 {
+		for _, p := range ps {
+			if p.SignedIn {
+				return "", "", fmt.Errorf("could not read usage for any signed-in profile")
+			}
+		}
+		return "", "", fmt.Errorf("no profile is signed in")
+	}
+	return ps[best].Name, results[best].why, nil
+}
+
 // resetClock renders a reset time compactly: clock only when it's within a
 // day, weekday otherwise.
 func resetClock(t time.Time) string {

@@ -19,11 +19,21 @@ Grab `ccswitch.exe` from the
 [Releases page](https://github.com/NotAProgrammer187/claude-code-profiles/releases)
 and put it anywhere on your PATH.)
 
-**macOS / Linux.** Download the matching binary from the
+**macOS / Linux.** Downloads the matching prebuilt binary and installs it to
+`~/.local/bin/ccswitch`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/NotAProgrammer187/claude-code-profiles/main/install.sh | sh
+```
+
+(Or grab `ccswitch-darwin-arm64`, `ccswitch-darwin-amd64`, or
+`ccswitch-linux-amd64` from the
 [Releases page](https://github.com/NotAProgrammer187/claude-code-profiles/releases)
-— `ccswitch-darwin-arm64`, `ccswitch-darwin-amd64`, or `ccswitch-linux-amd64` —
-then `chmod +x` it and move it onto your PATH (e.g. `~/bin`). On macOS, credential
+yourself, `chmod +x` it and move it onto your PATH.) On macOS, credential
 isolation is partial (see below).
+
+Both installers — and `ccswitch upgrade` — verify what they download against
+the `SHA256SUMS` manifest published with each release before installing it.
 
 **Build from source** — needs Go 1.22+, produces one static `.exe`:
 
@@ -41,6 +51,7 @@ cd claude-code-profiles
 | `ccswitch run work` | launch straight into a profile |
 | `ccswitch run` | launch the profile this directory is linked to (see below) |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
+| `ccswitch run --best` | launch the signed-in account with the most rate-limit headroom |
 | `ccswitch use work` | pin the current shell to a profile (see below) |
 | `ccswitch init pwsh` | shell integration: `use` applies itself, plus tab completion |
 | `ccswitch link work` | use this profile for the current directory and below |
@@ -80,6 +91,13 @@ the same numbers in the terminal. This reads the endpoint Claude Code's own
 (nothing is written or refreshed), and if the endpoint ever changes shape the
 rows simply omit it.
 
+Don't want to think about it at all? `ccswitch run --best` checks every
+signed-in account and launches the one with the most headroom — an account's
+score is its most-used window, since that's the one that will stop you first,
+and it prints what it picked and why (`work has the most headroom (5h 12% ·
+7d 30%)`). Accounts whose usage can't be read are skipped rather than guessed
+at.
+
 ### A usage panel beside Claude Code
 
 `ccswitch usage` answers the question once. `ccswitch usage --watch` keeps
@@ -90,7 +108,13 @@ windows, with the reset time under each.
 ![ccswitch usage --watch — a live rate-limit panel](docs/usage-watch.png)
 
 Bars turn amber past 70% and red past 90% — the same thresholds the picker
-uses, so the two views never disagree about what counts as getting close. The
+uses, so the two views never disagree about what counts as getting close. And
+because the panel is most useful when you're *not* looking at it, a window
+crossing into the red also rings the terminal bell and posts a desktop
+notification — a toast on Windows, Notification Center on macOS, `notify-send`
+on Linux. One crossing is one alert: opening the panel on an account
+already in the red shows red quietly, and a window has to drop back below 90%
+before it will alert again. The
 account your shell is pinned to is tagged `◂ shell`; a profile this directory
 is linked to is tagged `◂ here`. Opus gets its own meter only once you've
 actually used it, so plans without a separate Opus window don't show a

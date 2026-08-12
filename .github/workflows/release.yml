@@ -55,6 +55,11 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # install.ps1, install.sh and `ccswitch upgrade` all verify what they
+      # download against this file, so it must list every asset by exact name.
+      - name: Generate SHA256SUMS
+        run: cd dist && sha256sum * > SHA256SUMS
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
