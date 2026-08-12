@@ -114,6 +114,37 @@ func TestWatchArtTooWideIsDropped(t *testing.T) {
 	}
 }
 
+// One crossing is one alert: the first sighting only records state, staying in
+// the red stays quiet, and dropping below the threshold re-arms the window.
+func TestCheckAlertsFiresOncePerCrossing(t *testing.T) {
+	m := watchModel{alerted: map[string]bool{}}
+	at := func(util float64) *Usage {
+		return &Usage{Session: &UsageWindow{Utilization: util}}
+	}
+
+	if got := m.checkAlerts("work", at(95)); len(got) != 0 {
+		t.Error("first sighting of a window already in the red must not alert")
+	}
+	if got := m.checkAlerts("work", at(96)); len(got) != 0 {
+		t.Error("staying above the threshold must not alert again")
+	}
+	if got := m.checkAlerts("work", at(50)); len(got) != 0 {
+		t.Error("dropping below the threshold is not an alert")
+	}
+	if got := m.checkAlerts("work", at(92)); len(got) != 1 {
+		t.Errorf("crossing from below fires exactly one alert, got %d", len(got))
+	}
+	if got := m.checkAlerts("work", at(93)); len(got) != 0 {
+		t.Error("a crossing must not repeat while still above the threshold")
+	}
+
+	// Windows are tracked per profile: another account crossing is its own alert.
+	m.checkAlerts("personal", at(10))
+	if got := m.checkAlerts("personal", at(91)); len(got) != 1 {
+		t.Errorf("a second profile's crossing fires its own alert, got %d", len(got))
+	}
+}
+
 func testWatchModel() watchModel {
 	reset := time.Now().Add(2 * time.Hour)
 	return watchModel{
