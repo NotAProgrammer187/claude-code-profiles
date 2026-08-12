@@ -129,7 +129,11 @@ func ApplyDefaults(p Profile) ([]string, error) {
 	}
 
 	path := filepath.Join(p.Dir, settingsFile)
-	out, changed, err := mergeDefaults(shared, readFileOrEmpty(path))
+	cur, err := readFileIfPresent(path)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %s: %w", p.Name, settingsFile, err)
+	}
+	out, changed, err := mergeDefaults(shared, cur)
 	if err != nil {
 		// A settings.json we can't parse is someone's hand-edit in progress:
 		// say so and change nothing, rather than replace it with our own idea
@@ -148,7 +152,11 @@ func ApplyDefaults(p Profile) ([]string, error) {
 // defaultsDrift reports which shared keys a profile doesn't match yet, without
 // writing anything.
 func defaultsDrift(shared map[string]json.RawMessage, p Profile) ([]string, error) {
-	_, changed, err := mergeDefaults(shared, readFileOrEmpty(filepath.Join(p.Dir, settingsFile)))
+	cur, err := readFileIfPresent(filepath.Join(p.Dir, settingsFile))
+	if err != nil {
+		return nil, err
+	}
+	_, changed, err := mergeDefaults(shared, cur)
 	return changed, err
 }
 
