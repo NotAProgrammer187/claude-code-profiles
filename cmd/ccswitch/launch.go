@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -45,21 +46,23 @@ func Command(p Profile, args []string) (*exec.Cmd, error) {
 		return nil, err
 	}
 
-	var cmd *exec.Cmd
-	lower := strings.ToLower(bin)
-	if runtime.GOOS == "windows" && (strings.HasSuffix(lower, ".cmd") || strings.HasSuffix(lower, ".bat")) {
-		// CreateProcess cannot execute batch files directly; the npm install
-		// of Claude Code ships claude.cmd, so route those through cmd.exe.
-		cmd = exec.Command("cmd.exe", append([]string{"/c", bin}, args...)...)
-	} else {
-		cmd = exec.Command(bin, args...)
-	}
-
+	cmd := claudeCommand(context.Background(), bin, args...)
 	cmd.Env = childEnv(p.Dir)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd, nil
+}
+
+// claudeCommand builds a process running the claude binary. The npm install of
+// Claude Code ships claude.cmd on Windows, which needs cmd.exe and its own
+// quoting rules — see batchCommand.
+func claudeCommand(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	lower := strings.ToLower(bin)
+	if runtime.GOOS == "windows" && (strings.HasSuffix(lower, ".cmd") || strings.HasSuffix(lower, ".bat")) {
+		return batchCommand(ctx, bin, args...)
+	}
+	return exec.CommandContext(ctx, bin, args...)
 }
 
 func childEnv(dir string) []string {
