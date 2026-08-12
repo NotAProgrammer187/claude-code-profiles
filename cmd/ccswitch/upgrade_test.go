@@ -140,6 +140,45 @@ func TestHTTPClientTimeouts(t *testing.T) {
 	}
 }
 
+func TestParseChecksums(t *testing.T) {
+	manifest := strings.Join([]string{
+		"0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8  ccswitch.exe",
+		"a3f5c1d2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a80e5751c0 *ccswitch-linux-amd64",
+		"",
+		"not a checksum line",
+	}, "\n")
+
+	sums := parseChecksums(strings.NewReader(manifest))
+	if len(sums) != 2 {
+		t.Fatalf("parsed %d entries, want 2", len(sums))
+	}
+	if sums["ccswitch.exe"] != "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8" {
+		t.Errorf("wrong hash for ccswitch.exe: %s", sums["ccswitch.exe"])
+	}
+	// The `*` binary-mode marker must not end up in the filename.
+	if _, ok := sums["ccswitch-linux-amd64"]; !ok {
+		t.Error("binary-mode entry (*name) was not stripped to its filename")
+	}
+}
+
+func TestVerifyChecksum(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "asset")
+	writeFile(t, path, "hello")
+	// sha256("hello")
+	const good = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+	if err := verifyChecksum(path, "asset", map[string]string{"asset": good}); err != nil {
+		t.Errorf("matching checksum must verify: %v", err)
+	}
+	if err := verifyChecksum(path, "asset", map[string]string{"asset": strings.Repeat("0", 64)}); err == nil {
+		t.Error("a wrong hash must be rejected")
+	}
+	if err := verifyChecksum(path, "asset", map[string]string{"other": good}); err == nil {
+		t.Error("a manifest that doesn't list the asset must be rejected")
+	}
+}
+
 func TestProgressReaderTracksIdle(t *testing.T) {
 	pr := &progressReader{r: strings.NewReader("hello")}
 	pr.last.Store(time.Now().Add(-time.Hour).UnixNano())

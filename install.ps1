@@ -59,11 +59,46 @@ $asset = $release.assets | Where-Object { $_.name -eq "ccswitch.exe" } | Select-
 if (-not $asset) {
     Die "The latest release ($($release.tag_name)) has no ccswitch.exe asset attached."
 }
+$sums = $release.assets | Where-Object { $_.name -eq "SHA256SUMS" } | Select-Object -First 1
 
+# Download to a temp file first, so a failed checksum never leaves a bad
+# binary on the PATH.
 New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $dest = Join-Path $bin "ccswitch.exe"
+$tmp  = Join-Path $env:TEMP ("ccswitch-" + [IO.Path]::GetRandomFileName() + ".exe")
 Info "Downloading ccswitch.exe ($($release.tag_name))..."
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $dest -Headers $headers
+Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmp -Headers $headers
+
+# --- Checksum ------------------------------------------------------------
+
+# Releases before the manifest existed have nothing to verify against, so a
+# missing SHA256SUMS is a loud warning; once one is present, any mismatch stops
+# the install.
+if ($sums) {
+    $manifest = (Invoke-WebRequest -Uri $sums.browser_download_url -Headers $headers -UseBasicParsing).Content
+    if ($manifest -is [byte[]]) { $manifest = [Text.Encoding]::UTF8.GetString($manifest) }
+    $expected = $null
+    foreach ($line in ($manifest -split "`n")) {
+        $parts = ($line.Trim() -split "\s+")
+        if ($parts.Count -eq 2 -and $parts[1].TrimStart("*") -eq "ccswitch.exe") {
+            $expected = $parts[0].ToLower()
+        }
+    }
+    if (-not $expected) {
+        Remove-Item $tmp -Force
+        Die "SHA256SUMS in release $($release.tag_name) does not list ccswitch.exe - refusing to install."
+    }
+    $actual = (Get-FileHash -Path $tmp -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne $expected) {
+        Remove-Item $tmp -Force
+        Die "Checksum mismatch for ccswitch.exe (got $actual, want $expected) - refusing to install."
+    }
+    Ok "  [ok] SHA256 checksum verified"
+} else {
+    Warn "  [!]  Release $($release.tag_name) has no SHA256SUMS manifest - checksum not verified."
+}
+
+Move-Item -Path $tmp -Destination $dest -Force
 Ok "Installed to $dest"
 
 # --- PATH ----------------------------------------------------------------

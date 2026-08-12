@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -144,11 +147,13 @@ func cmdUpgrade() error {
 		return nil
 	}
 
-	var url string
+	var url, sumsURL string
 	for _, a := range rel.Assets {
-		if a.Name == want {
+		switch a.Name {
+		case want:
 			url = a.URL
-			break
+		case checksumAsset:
+			sumsURL = a.URL
 		}
 	}
 	if url == "" {
@@ -168,6 +173,25 @@ func cmdUpgrade() error {
 	tmp := self + ".new"
 	if err := download(url, tmp, self); err != nil {
 		return err
+	}
+
+	// Verify what we downloaded before swapping it in. Releases before the
+	// manifest existed have nothing to check against, so a missing manifest is
+	// a loud warning rather than an error — but once one is present, any
+	// mismatch is fatal.
+	if sumsURL == "" {
+		fmt.Printf("Warning: release %s has no %s manifest — checksum not verified.\n", rel.TagName, checksumAsset)
+	} else {
+		sums, err := fetchChecksums(sumsURL)
+		if err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("could not fetch %s: %w", checksumAsset, err)
+		}
+		if err := verifyChecksum(tmp, want, sums); err != nil {
+			_ = os.Remove(tmp)
+			return err
+		}
+		fmt.Println("Checksum verified.")
 	}
 
 	// Swap the new binary into place. Windows can't overwrite a running exe,
@@ -278,6 +302,70 @@ func download(url, dst, template string) error {
 		return err
 	}
 	return out.Close()
+}
+
+// checksumAsset is the manifest release.yml publishes beside the binaries:
+// one `<sha256>  <filename>` line per asset, as written by sha256sum.
+const checksumAsset = "SHA256SUMS"
+
+// fetchChecksums downloads the manifest and returns filename → expected hash.
+func fetchChecksums(url string) (map[string]string, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "ccswitch-upgrade")
+
+	// The manifest is a few hundred bytes; a total deadline is fine.
+	resp, err := httpClient(30 * time.Second).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download failed: %s", resp.Status)
+	}
+	return parseChecksums(resp.Body), nil
+}
+
+// parseChecksums reads sha256sum output: hash, whitespace, filename — with the
+// `*` binary-mode marker some tools prefix to the name stripped off.
+func parseChecksums(r io.Reader) map[string]string {
+	out := map[string]string{}
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) != 2 {
+			continue
+		}
+		name := strings.TrimPrefix(fields[1], "*")
+		out[name] = strings.ToLower(fields[0])
+	}
+	return out
+}
+
+// verifyChecksum hashes path and compares it to the manifest entry for name.
+// A manifest that doesn't mention the asset at all is as fatal as a mismatch —
+// it means the release wasn't built the way we expect.
+func verifyChecksum(path, name string, sums map[string]string) error {
+	want, ok := sums[name]
+	if !ok {
+		return fmt.Errorf("%s does not list %s — refusing to install", checksumAsset, name)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if got != want {
+		return fmt.Errorf("checksum mismatch for %s: got %s, want %s — refusing to install", name, got, want)
+	}
+	return nil
 }
 
 // watchStall cancels the request if the body stops producing bytes for
