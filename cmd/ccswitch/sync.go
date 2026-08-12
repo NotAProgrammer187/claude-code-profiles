@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -297,8 +298,15 @@ func printSyncPlan(src Profile, targets []Profile, changes []change, warnings []
 // no such item, or the target already matches.
 func planItem(it syncItem, src, dst Profile) (string, error) {
 	if it.Name == "mcp" {
-		_, n, err := mergeMCP(readFileOrEmpty(filepath.Join(src.Dir, claudeJSONFile)),
-			readFileOrEmpty(filepath.Join(dst.Dir, claudeJSONFile)))
+		srcJSON, err := readFileIfPresent(filepath.Join(src.Dir, claudeJSONFile))
+		if err != nil {
+			return "", err
+		}
+		dstJSON, err := readFileIfPresent(filepath.Join(dst.Dir, claudeJSONFile))
+		if err != nil {
+			return "", err
+		}
+		_, n, err := mergeMCP(srcJSON, dstJSON)
 		if err != nil || n == 0 {
 			return "", err
 		}
@@ -345,8 +353,15 @@ func planItem(it syncItem, src, dst Profile) (string, error) {
 func applyItem(it syncItem, src, dst Profile) error {
 	if it.Name == "mcp" {
 		dstPath := filepath.Join(dst.Dir, claudeJSONFile)
-		out, n, err := mergeMCP(readFileOrEmpty(filepath.Join(src.Dir, claudeJSONFile)),
-			readFileOrEmpty(dstPath))
+		srcJSON, err := readFileIfPresent(filepath.Join(src.Dir, claudeJSONFile))
+		if err != nil {
+			return err
+		}
+		dstJSON, err := readFileIfPresent(dstPath)
+		if err != nil {
+			return err
+		}
+		out, n, err := mergeMCP(srcJSON, dstJSON)
 		if err != nil || n == 0 {
 			return err
 		}
@@ -410,12 +425,16 @@ func sameContents(src, dst string) (bool, error) {
 	return bytes.Equal(a, b), nil
 }
 
-func readFileOrEmpty(path string) []byte {
+// readFileIfPresent returns the file's bytes, or nil for a file that simply
+// doesn't exist. Any other read failure is an error the caller must stop on:
+// merges treat nil as "start from empty", and rewriting a file that exists but
+// couldn't be read would replace an account's config with only the merged keys.
+func readFileIfPresent(path string) ([]byte, error) {
 	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
-	return b
+	return b, err
 }
 
 // ---------------------------------------------------------------------------

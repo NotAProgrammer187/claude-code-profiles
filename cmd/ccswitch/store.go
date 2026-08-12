@@ -124,7 +124,14 @@ func loadState() state {
 	if err != nil {
 		return st
 	}
-	_ = json.Unmarshal(b, &st)
+	if err := json.Unmarshal(b, &st); err != nil {
+		// A mangled state file must not be silently replaced by the next
+		// save — it holds every directory link. Put it aside for recovery
+		// and say so; starting fresh is then an honest choice, not a leak.
+		_ = os.Rename(p, p+".corrupt")
+		fmt.Fprintf(os.Stderr, "ccswitch: could not read %s (%v) — moved aside to state.json.corrupt\n", p, err)
+		return state{LastUsed: map[string]time.Time{}}
+	}
 	if st.LastUsed == nil {
 		st.LastUsed = map[string]time.Time{}
 	}
@@ -143,7 +150,13 @@ func (s state) save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, b, 0o600)
+	// Write-then-rename, so a crash mid-save can never leave a truncated
+	// state.json for loadState to declare corrupt.
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, p)
 }
 
 func TouchProfile(name string) {
@@ -305,6 +318,12 @@ func Create(name string) (Profile, error) {
 		return Profile{}, err
 	}
 	target := filepath.Join(dir, name)
+	// Find matches case-insensitively — exactly how run/use/link resolve a
+	// name — so two profiles differing only in case would be ambiguous
+	// everywhere. Refuse them even where the filesystem would allow it.
+	if p, err := Find(name); err == nil {
+		return Profile{}, fmt.Errorf("profile %q already exists", p.Name)
+	}
 	if _, err := os.Stat(target); err == nil {
 		return Profile{}, fmt.Errorf("profile %q already exists", name)
 	}
@@ -324,7 +343,8 @@ func Delete(name string) error {
 	}
 	dropLinksTo(p.Name)
 	st := loadState()
-	delete(st.LastUsed, name)
+	// p.Name, not the caller's spelling: Find resolved case-insensitively.
+	delete(st.LastUsed, p.Name)
 	return st.save()
 }
 
@@ -340,18 +360,30 @@ func Rename(old, newName string) error {
 	if err != nil {
 		return err
 	}
+	if p.Name == newName {
+		return fmt.Errorf("profile is already named %q", newName)
+	}
 	target := filepath.Join(dir, newName)
-	if _, err := os.Stat(target); err == nil {
-		return fmt.Errorf("profile %q already exists", newName)
+	// A case-only rename of the same profile is legitimate; anything else
+	// that resolves to an existing profile (case-insensitively, like Find)
+	// is a collision — including on filesystems that would permit it.
+	if !strings.EqualFold(p.Name, newName) {
+		if other, err := Find(newName); err == nil {
+			return fmt.Errorf("profile %q already exists", other.Name)
+		}
+		if _, err := os.Stat(target); err == nil {
+			return fmt.Errorf("profile %q already exists", newName)
+		}
 	}
 	if err := os.Rename(p.Dir, target); err != nil {
 		return err
 	}
 	renameLinksTo(p.Name, newName)
 	st := loadState()
-	if t, ok := st.LastUsed[old]; ok {
+	// p.Name, not the caller's spelling: Find resolved case-insensitively.
+	if t, ok := st.LastUsed[p.Name]; ok {
 		st.LastUsed[newName] = t
-		delete(st.LastUsed, old)
+		delete(st.LastUsed, p.Name)
 	}
 	return st.save()
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -98,6 +99,9 @@ func run(args []string) error {
 	case "complete":
 		// Internal: called by the snippets `ccswitch init` prints.
 		return cmdComplete(args[1:])
+	case "update-check":
+		// Internal: the detached helper kickUpdateCheck spawns.
+		return cmdUpdateCheck()
 	case "new", "add", "create":
 		return cmdNew(args[1:])
 	case "import":
@@ -116,6 +120,7 @@ func run(args []string) error {
 		return cmdUpgrade()
 	case "version", "--version", "-v":
 		fmt.Println("ccswitch " + version)
+		printUpdateNudges()
 		return nil
 	case "help", "--help", "-h":
 		fmt.Print(usage)
@@ -126,8 +131,12 @@ func run(args []string) error {
 }
 
 func interactive() error {
+	kickUpdateCheck()
 	p := tea.NewProgram(newModel(), tea.WithAltScreen())
 	_, err := p.Run()
+	// After the alt screen is gone, so the nudge is what's left on the
+	// terminal rather than something the picker painted over.
+	printUpdateNudges()
 	return err
 }
 
@@ -185,7 +194,18 @@ func cmdRun(args []string) error {
 		fmt.Fprintf(os.Stderr, "ccswitch: unsetting %s so the subscription login is used\n", k)
 	}
 
-	if err := cmd.Run(); err != nil {
+	kickUpdateCheck()
+	// Ctrl-C is Claude Code's to handle: the terminal delivers it to the
+	// whole foreground group, and claude traps it (to cancel a response)
+	// while we — its wrapper — would die, dropping a shell prompt on top of
+	// a still-running TUI and losing the exit-code passthrough below.
+	signal.Ignore(os.Interrupt)
+	err = cmd.Run()
+	signal.Reset(os.Interrupt)
+	// Claude Code has the terminal for the whole session; the moment it hands
+	// the prompt back is when a nudge can actually be read.
+	printUpdateNudges()
+	if err != nil {
 		// Pass Claude Code's own exit code straight through.
 		var ee *exec.ExitError
 		if ok := asExitError(err, &ee); ok {

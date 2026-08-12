@@ -1,0 +1,17 @@
+# Normalize everything git detects as text to LF in the repo.
+* text=auto
+
+# install.sh is piped straight to `sh` from raw.githubusercontent.com — a CRLF
+# checkout or commit would break it with "\r: command not found". Keep every
+# shell-adjacent file LF everywhere, even on Windows checkouts.
+*.sh text eol=lf
+*.go text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+
+# PowerShell is the one place CRLF is at home.
+*.ps1 text eol=crlf
+
+# Never try to diff or convert binaries.
+*.png binary
+*.exe binary

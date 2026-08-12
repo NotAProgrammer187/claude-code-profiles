@@ -205,6 +205,9 @@ func cmdUsage(args []string) error {
 			raw, err = next("--every")
 		case strings.HasPrefix(a, "--every="):
 			raw = strings.TrimPrefix(a, "--every=")
+			if raw == "" {
+				return fmt.Errorf("--every needs a value")
+			}
 		case strings.HasPrefix(a, "-"):
 			return fmt.Errorf("unknown flag %q (usage: ccswitch usage [--watch] [--every 60s])", a)
 		default:
@@ -221,7 +224,7 @@ func cmdUsage(args []string) error {
 			// The endpoint is undocumented and shared with Claude Code itself;
 			// polling it harder than this is rude and tells you nothing new.
 			if d < watchMinEvery {
-				return fmt.Errorf("--every is capped at %s minimum", watchMinEvery)
+				return fmt.Errorf("--every must be at least %s", watchMinEvery)
 			}
 			every = d
 			watch = true

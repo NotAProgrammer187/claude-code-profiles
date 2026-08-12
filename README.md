@@ -35,6 +35,13 @@ isolation is partial (see below).
 Both installers — and `ccswitch upgrade` — verify what they download against
 the `SHA256SUMS` manifest published with each release before installing it.
 
+Neither ccswitch nor Claude Code will surprise you with an update, but you
+also shouldn't have to go looking: at most once a day, a background check
+notes the latest release of each, and the moment you're back at a prompt —
+Claude Code exiting, the picker closing — a one-liner tells you what's newer
+and the command that updates it. No launch ever waits on the check, and
+setting `CCSWITCH_NO_UPDATE_CHECK=1` turns it off entirely.
+
 **Build from source** — needs Go 1.22+, produces one static `.exe`:
 
 ```powershell
