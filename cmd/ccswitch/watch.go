@@ -133,6 +133,11 @@ type watchModel struct {
 	every   time.Duration
 	updated time.Time
 	pending int
+	// gen stamps each fetch batch. A refresh while replies are still in
+	// flight starts a new generation; the old batch's replies still fill
+	// rows in, but only current-generation ones may count pending down —
+	// otherwise the footer says "updated" while rows are still checking.
+	gen int
 
 	step int // mascot animation frame
 
@@ -146,6 +151,7 @@ type watchUsageMsg struct {
 	name string
 	u    *Usage
 	err  string
+	gen  int
 }
 
 type watchTickMsg time.Time
@@ -203,6 +209,7 @@ func (m watchModel) animate() tea.Cmd {
 // fetched — refreshing is Claude Code's job, not ours.
 func (m watchModel) fetchAll() tea.Cmd {
 	var cmds []tea.Cmd
+	gen := m.gen
 	for _, p := range m.profiles {
 		if !p.SignedIn {
 			continue
@@ -211,9 +218,9 @@ func (m watchModel) fetchAll() tea.Cmd {
 		cmds = append(cmds, func() tea.Msg {
 			u, err := FetchUsage(p)
 			if err != nil {
-				return watchUsageMsg{name: p.Name, err: err.Error()}
+				return watchUsageMsg{name: p.Name, err: err.Error(), gen: gen}
 			}
-			return watchUsageMsg{name: p.Name, u: u}
+			return watchUsageMsg{name: p.Name, u: u, gen: gen}
 		})
 	}
 	return tea.Batch(cmds...)
@@ -246,7 +253,7 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			delete(m.errs, msg.name)
 			alerts = m.checkAlerts(msg.name, msg.u)
 		}
-		if m.pending > 0 {
+		if msg.gen == m.gen && m.pending > 0 {
 			m.pending--
 		}
 		m.updated = time.Now()
@@ -260,6 +267,7 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Pick up profiles added or signed in since the last pass, so the panel
 		// doesn't need restarting after a `ccswitch new`.
 		m.reload()
+		m.gen++
 		m.pending = m.countFetchable()
 		return m, tea.Batch(m.fetchAll(), m.tick())
 
@@ -269,6 +277,7 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "r":
 			m.reload()
+			m.gen++
 			m.pending = m.countFetchable()
 			return m, m.fetchAll()
 		}
