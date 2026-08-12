@@ -103,6 +103,7 @@ var completeCommands = []string{
 }
 
 var completeFlags = map[string][]string{
+	"run":   {"--best"},
 	"use":   {"--unset", "--shell"},
 	"sync":  {"--from", "--to", "--only", "--dry-run", "--yes"},
 	"usage": {"--watch", "--every"},
