@@ -48,31 +48,41 @@ func TestParseClaudeVersion(t *testing.T) {
 }
 
 func TestNudgesFor(t *testing.T) {
+	selfUpgrade := func() string { return "ccswitch upgrade" }
+
 	// Everything current: silence.
-	if n := nudgesFor(updateCache{CcswitchLatest: version, ClaudeLatest: "2.0.0", ClaudeHave: "2.0.0"}, "ccswitch upgrade"); len(n) != 0 {
+	if n := nudgesFor(updateCache{CcswitchLatest: version, ClaudeLatest: "2.0.0", ClaudeHave: "2.0.0"}, selfUpgrade); len(n) != 0 {
 		t.Errorf("up-to-date cache must not nudge, got %v", n)
 	}
 
 	// Claude Code behind: exactly one nudge, naming both versions.
-	n := nudgesFor(updateCache{ClaudeLatest: "2.1.0", ClaudeHave: "2.0.0"}, "ccswitch upgrade")
+	n := nudgesFor(updateCache{ClaudeLatest: "2.1.0", ClaudeHave: "2.0.0"}, selfUpgrade)
 	if len(n) != 1 || !strings.Contains(n[0], "2.1.0") || !strings.Contains(n[0], "2.0.0") {
 		t.Errorf("stale Claude Code must nudge with both versions, got %v", n)
 	}
 
 	// A latest with no installed version read stays quiet — nothing to compare.
-	if n := nudgesFor(updateCache{ClaudeLatest: "9.9.9"}, "ccswitch upgrade"); len(n) != 0 {
+	if n := nudgesFor(updateCache{ClaudeLatest: "9.9.9"}, selfUpgrade); len(n) != 0 {
 		t.Errorf("unknown installed version must not nudge, got %v", n)
 	}
 
 	// Both tools behind: two nudges, ccswitch's naming the upgrade command.
-	n = nudgesFor(updateCache{CcswitchLatest: "99.0.0", ClaudeLatest: "2.1.0", ClaudeHave: "2.0.0"}, "ccswitch upgrade")
+	n = nudgesFor(updateCache{CcswitchLatest: "99.0.0", ClaudeLatest: "2.1.0", ClaudeHave: "2.0.0"}, selfUpgrade)
 	if len(n) != 2 || !strings.Contains(n[0], "ccswitch upgrade") {
 		t.Errorf("both stale must yield two nudges, got %v", n)
 	}
 
 	// A package-manager install nudges with that manager's command, not ours.
-	n = nudgesFor(updateCache{CcswitchLatest: "99.0.0"}, "scoop update ccswitch")
+	n = nudgesFor(updateCache{CcswitchLatest: "99.0.0"}, func() string { return "scoop update ccswitch" })
 	if len(n) != 1 || !strings.Contains(n[0], "scoop update ccswitch") {
 		t.Errorf("managed install must nudge with the manager's command, got %v", n)
+	}
+
+	// The hint is only computed when a ccswitch nudge actually fires — the
+	// common up-to-date path must stay free of the symlink walk behind it.
+	called := false
+	nudgesFor(updateCache{CcswitchLatest: version}, func() string { called = true; return "x" })
+	if called {
+		t.Error("upgradeCmd must not be evaluated when no ccswitch nudge fires")
 	}
 }

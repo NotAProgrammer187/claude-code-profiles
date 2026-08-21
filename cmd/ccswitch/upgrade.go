@@ -126,20 +126,57 @@ func latestRelease() (ghRelease, error) {
 	return rel, nil
 }
 
+// selfPath is the running binary with symlinks resolved — Homebrew's bin/
+// entry is a symlink into the Cellar, and both upgrade and install-manager
+// detection need the real file, not the link. One helper, so the nudge and
+// the command it recommends can never disagree about the same binary.
+func selfPath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("could not locate the running binary: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve the running binary's path: %w", err)
+	}
+	return resolved, nil
+}
+
 // managedInstaller names the package manager that owns the binary at path, if
-// any, plus the command that updates it. Detection is by install layout: Scoop
-// keeps every app under scoop/apps/<name>/, Homebrew keeps kegs in a Cellar
-// (macOS and Linuxbrew alike). The path must already have symlinks resolved —
-// Homebrew's bin/ entry is a symlink into the Cellar.
-func managedInstaller(path string) (name, hint string) {
-	p := strings.ToLower(strings.ReplaceAll(path, `\`, `/`))
+// any, plus the command that updates it. Detection is by install layout,
+// anchored to this app's own directory so an unrelated folder that merely
+// contains "scoop" or "cellar" never locks the user out of upgrading: Scoop
+// keeps every app under <root>/apps/<name>/ (default root ~/scoop; scoopRoots
+// carries relocated ones — see scoopRootsFromEnv), Homebrew keeps kegs under
+// Cellar/<name>/ on macOS and Linuxbrew alike. The path must already have
+// symlinks resolved.
+func managedInstaller(path string, scoopRoots []string) (name, hint string) {
+	p := normInstallPath(path)
+	for _, r := range scoopRoots {
+		if r = normInstallPath(r); r != "" && strings.HasPrefix(p, r+"/apps/ccswitch/") {
+			return "Scoop", "scoop update ccswitch"
+		}
+	}
 	switch {
-	case strings.Contains(p, "/scoop/apps/"):
+	case strings.Contains(p, "/scoop/apps/ccswitch/"):
 		return "Scoop", "scoop update ccswitch"
-	case strings.Contains(p, "/cellar/"):
+	case strings.Contains(p, "/cellar/ccswitch/"):
 		return "Homebrew", "brew upgrade ccswitch"
 	}
 	return "", ""
+}
+
+// normInstallPath lower-cases and forward-slashes a path so the layout checks
+// above are one comparison on every platform.
+func normInstallPath(p string) string {
+	return strings.TrimRight(strings.ToLower(strings.ReplaceAll(p, `\`, `/`)), "/")
+}
+
+// scoopRootsFromEnv reports where a relocated Scoop keeps its apps: the SCOOP
+// and SCOOP_GLOBAL env vars are Scoop's documented way to move its root off
+// ~/scoop, and a moved root defeats the default-layout check.
+func scoopRootsFromEnv() []string {
+	return []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")}
 }
 
 // cmdUpgrade replaces the running binary with the latest release for this
@@ -151,18 +188,14 @@ func cmdUpgrade() error {
 		return err
 	}
 
-	self, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	self, err = filepath.EvalSymlinks(self)
+	self, err := selfPath()
 	if err != nil {
 		return err
 	}
 	// A binary a package manager put in place is that manager's to update:
 	// replacing it here would be silently undone by the manager's own next
 	// upgrade, or leave its bookkeeping describing a binary it didn't install.
-	if name, hint := managedInstaller(self); name != "" {
+	if name, hint := managedInstaller(self, scoopRootsFromEnv()); name != "" {
 		return fmt.Errorf("this ccswitch was installed by %s — update it with: %s", name, hint)
 	}
 

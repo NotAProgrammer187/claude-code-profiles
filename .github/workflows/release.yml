@@ -30,6 +30,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A tag that doesn't match the version compiled into the binary would
+      # ship a release whose binary reports the wrong version — breaking the
+      # formula's test block and making the update nudge fire forever.
+      - name: Tag must match the built-in version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          grep -Fq "const version = \"$v\"" cmd/ccswitch/main.go || {
+            echo "tag ${GITHUB_REF_NAME} but cmd/ccswitch/main.go compiles a different version — bump the const and retag"
+            exit 1
+          }
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
@@ -50,30 +61,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      # install.ps1, install.sh and `ccswitch upgrade` all verify what they
-      # download against this file, so it must list every asset by exact name.
-      - name: Generate SHA256SUMS
-        run: cd dist && sha256sum * > SHA256SUMS
-
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true
-
-  # Keep the Scoop manifest and Homebrew formula pointing at the release that
-  # was just published, so package-manager installs never lag the binaries.
-  # Regenerated from the same assets the release carries, then committed to
-  # main — packaging/update-manifests.sh is the single source of their shape.
-  manifests:
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
+      # main, not the tag: the manifest commit below lands on main, and the
+      # generator script it runs is read from the same checkout.
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -83,17 +72,37 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Regenerate manifests
-        run: |
-          sha() { sha256sum "dist/$1" | cut -d' ' -f1; }
-          sh packaging/update-manifests.sh "${GITHUB_REF_NAME#v}" \
-            "$(sha ccswitch.exe)" \
-            "$(sha ccswitch-darwin-arm64)" \
-            "$(sha ccswitch-darwin-amd64)" \
-            "$(sha ccswitch-linux-amd64)"
+      # install.ps1, install.sh, `ccswitch upgrade` and the Scoop autoupdate
+      # block all verify downloads against this file, so it must list every
+      # asset by exact name — and naming them here (not `*`) makes a missing
+      # or renamed asset fail the job instead of shipping an incomplete list.
+      - name: Generate SHA256SUMS
+        run: cd dist && sha256sum -- ccswitch.exe ccswitch-darwin-arm64 ccswitch-darwin-amd64 ccswitch-linux-amd64 > SHA256SUMS
 
-      - name: Commit to main
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+      # Keep the Scoop manifest and Homebrew formula pointing at the release
+      # that was just published, so package-manager installs never lag the
+      # binaries. The script looks hashes up in SHA256SUMS by asset name and
+      # refuses anything that isn't a full SHA-256, so an empty or transposed
+      # hash cannot reach main.
+      - name: Regenerate package manifests
+        run: sh packaging/update-manifests.sh "${GITHUB_REF_NAME#v}" dist/SHA256SUMS
+
+      - name: Commit manifests to main
         run: |
+          new="${GITHUB_REF_NAME#v}"
+          cur=$(git show HEAD:scoop/ccswitch.json 2>/dev/null | sed -n 's/.*"version": "\([^"]*\)".*/\1/p' | head -n1)
+          # Re-running an old tag's workflow must not downgrade what main
+          # serves to raw-URL installs.
+          if [ -n "$cur" ] && [ "$(printf '%s\n%s\n' "$cur" "$new" | sort -V | head -n1)" != "$cur" ]; then
+            echo "committed manifests are at $cur, newer than $new — leaving them alone"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add scoop/ccswitch.json Formula/ccswitch.rb
@@ -102,4 +111,11 @@ jobs:
             exit 0
           fi
           git commit -m "chore: point package manifests at ${GITHUB_REF_NAME}"
-          git push origin main
+          # main may have moved while the build ran; rebase our one commit
+          # onto it and retry rather than failing non-fast-forward.
+          for i in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
