@@ -30,6 +30,10 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch usage           show each account's rate-limit usage
   ccswitch usage --watch   live usage panel to park beside Claude Code
                            (--every 30s to change the refresh interval)
+  ccswitch statusline      profile + usage as one line, for Claude Code's
+                           statusLine setting — wire it into every profile:
+                           ccswitch defaults set statusLine
+                             '{"type":"command","command":"ccswitch statusline"}'
   ccswitch sync --from <name>
                            copy shared config (settings, CLAUDE.md, commands,
                            agents, skills, MCP servers) into your other
@@ -71,7 +75,11 @@ func main() {
 }
 
 func run(args []string) error {
-	cleanupOldBinary()
+	// The status line fires many times a minute from inside Claude Code, so
+	// that path skips even cheap start-up housekeeping — it must stay a read.
+	if len(args) == 0 || args[0] != "statusline" {
+		cleanupOldBinary()
+	}
 
 	if len(args) == 0 {
 		return interactive()
@@ -84,6 +92,11 @@ func run(args []string) error {
 		return cmdUse(args[1:])
 	case "usage", "limits":
 		return cmdUsage(args[1:])
+	case "statusline":
+		return cmdStatusline(args[1:])
+	case "statusline-refresh":
+		// Internal: the detached helper cmdStatusline spawns.
+		return cmdStatuslineRefresh(args[1:])
 	case "sync":
 		return cmdSync(args[1:])
 	case "defaults":
