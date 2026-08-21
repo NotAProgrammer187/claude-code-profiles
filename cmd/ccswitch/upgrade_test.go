@@ -179,6 +179,29 @@ func TestVerifyChecksum(t *testing.T) {
 	}
 }
 
+func TestManagedInstaller(t *testing.T) {
+	cases := []struct {
+		path string
+		want string // manager name; "" means unmanaged
+	}{
+		{`C:\Users\r\scoop\apps\ccswitch\0.1.7\ccswitch.exe`, "Scoop"},
+		{`D:\Scoop\apps\ccswitch\current\ccswitch.exe`, "Scoop"},
+		{"/opt/homebrew/Cellar/ccswitch/0.1.7/bin/ccswitch", "Homebrew"},
+		{"/home/linuxbrew/.linuxbrew/Cellar/ccswitch/0.1.7/bin/ccswitch", "Homebrew"},
+		{"/usr/local/bin/ccswitch", ""},
+		{`C:\Users\r\.local\bin\ccswitch.exe`, ""},
+	}
+	for _, c := range cases {
+		name, hint := managedInstaller(c.path)
+		if name != c.want {
+			t.Errorf("managedInstaller(%q) = %q, want %q", c.path, name, c.want)
+		}
+		if (name == "") != (hint == "") {
+			t.Errorf("managedInstaller(%q): name and hint must come together, got %q / %q", c.path, name, hint)
+		}
+	}
+}
+
 func TestProgressReaderTracksIdle(t *testing.T) {
 	pr := &progressReader{r: strings.NewReader("hello")}
 	pr.last.Store(time.Now().Add(-time.Hour).UnixNano())

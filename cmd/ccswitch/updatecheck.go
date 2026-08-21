@@ -199,15 +199,34 @@ func newerVersion(a, b string) bool {
 // nudgesFor is the pure half of printUpdateNudges: one line per tool the
 // cache says is behind. A tool whose installed version was never read stays
 // silent — "you might be out of date" is not a nudge worth interrupting for.
-func nudgesFor(c updateCache) []string {
+// upgradeCmd is what actually updates this install of ccswitch — see
+// upgradeCommandHint.
+func nudgesFor(c updateCache, upgradeCmd string) []string {
 	var out []string
 	if newerVersion(c.CcswitchLatest, version) {
-		out = append(out, fmt.Sprintf("ccswitch v%s is available (you have v%s) — run: ccswitch upgrade", c.CcswitchLatest, version))
+		out = append(out, fmt.Sprintf("ccswitch v%s is available (you have v%s) — run: %s", c.CcswitchLatest, version, upgradeCmd))
 	}
 	if newerVersion(c.ClaudeLatest, c.ClaudeHave) {
 		out = append(out, fmt.Sprintf("Claude Code v%s is available (you have v%s) — run: claude update", c.ClaudeLatest, c.ClaudeHave))
 	}
 	return out
+}
+
+// upgradeCommandHint is what a nudge should tell the user to run: ccswitch's
+// own upgrade normally, the owning package manager's command when the binary
+// was installed by one — the same detection cmdUpgrade refuses on.
+func upgradeCommandHint() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "ccswitch upgrade"
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	if _, hint := managedInstaller(exe); hint != "" {
+		return hint
+	}
+	return "ccswitch upgrade"
 }
 
 // printUpdateNudges reports what the cache already knows, on stderr so it
@@ -216,7 +235,7 @@ func printUpdateNudges() {
 	if os.Getenv(noUpdateCheckEnv) != "" {
 		return
 	}
-	for _, line := range nudgesFor(loadUpdateCache()) {
+	for _, line := range nudgesFor(loadUpdateCache(), upgradeCommandHint()) {
 		fmt.Fprintln(os.Stderr, "ccswitch: "+line)
 	}
 }

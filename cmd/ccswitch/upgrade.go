@@ -126,6 +126,22 @@ func latestRelease() (ghRelease, error) {
 	return rel, nil
 }
 
+// managedInstaller names the package manager that owns the binary at path, if
+// any, plus the command that updates it. Detection is by install layout: Scoop
+// keeps every app under scoop/apps/<name>/, Homebrew keeps kegs in a Cellar
+// (macOS and Linuxbrew alike). The path must already have symlinks resolved —
+// Homebrew's bin/ entry is a symlink into the Cellar.
+func managedInstaller(path string) (name, hint string) {
+	p := strings.ToLower(strings.ReplaceAll(path, `\`, `/`))
+	switch {
+	case strings.Contains(p, "/scoop/apps/"):
+		return "Scoop", "scoop update ccswitch"
+	case strings.Contains(p, "/cellar/"):
+		return "Homebrew", "brew upgrade ccswitch"
+	}
+	return "", ""
+}
+
 // cmdUpgrade replaces the running binary with the latest release for this
 // platform. On Windows a running executable can't be overwritten, so the old
 // one is renamed aside and cleaned up on the next run.
@@ -133,6 +149,21 @@ func cmdUpgrade() error {
 	want, err := assetName()
 	if err != nil {
 		return err
+	}
+
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	self, err = filepath.EvalSymlinks(self)
+	if err != nil {
+		return err
+	}
+	// A binary a package manager put in place is that manager's to update:
+	// replacing it here would be silently undone by the manager's own next
+	// upgrade, or leave its bookkeeping describing a binary it didn't install.
+	if name, hint := managedInstaller(self); name != "" {
+		return fmt.Errorf("this ccswitch was installed by %s — update it with: %s", name, hint)
 	}
 
 	fmt.Println("Checking for the latest release...")
@@ -158,15 +189,6 @@ func cmdUpgrade() error {
 	}
 	if url == "" {
 		return fmt.Errorf("release %s has no %s asset", rel.TagName, want)
-	}
-
-	self, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	self, err = filepath.EvalSymlinks(self)
-	if err != nil {
-		return err
 	}
 
 	fmt.Printf("Downloading %s %s...\n", want, rel.TagName)

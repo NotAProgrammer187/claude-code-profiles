@@ -1,0 +1,18 @@
+{
+    "version": "0.1.7",
+    "description": "Switch between multiple Claude Code accounts without logging out",
+    "homepage": "https://github.com/NotAProgrammer187/claude-code-profiles",
+    "license": "MIT",
+    "url": "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.7/ccswitch.exe",
+    "hash": "cc30479d2c0ec9dbc9fbecab93dfd6432fe71cb90c97235257eeb6e770dd7e39",
+    "bin": "ccswitch.exe",
+    "checkver": {
+        "github": "https://github.com/NotAProgrammer187/claude-code-profiles"
+    },
+    "autoupdate": {
+        "url": "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v$version/ccswitch.exe",
+        "hash": {
+            "url": "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v$version/SHA256SUMS"
+        }
+    }
+}
