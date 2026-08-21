@@ -19,6 +19,13 @@ Grab `ccswitch.exe` from the
 [Releases page](https://github.com/NotAProgrammer187/claude-code-profiles/releases)
 and put it anywhere on your PATH.)
 
+Using [Scoop](https://scoop.sh)? The manifest lives in this repo, so no bucket
+is needed — and `scoop update ccswitch` handles updates from then on:
+
+```powershell
+scoop install https://raw.githubusercontent.com/NotAProgrammer187/claude-code-profiles/main/scoop/ccswitch.json
+```
+
 **macOS / Linux.** Downloads the matching prebuilt binary and installs it to
 `~/.local/bin/ccswitch`:
 
@@ -32,8 +39,20 @@ curl -fsSL https://raw.githubusercontent.com/NotAProgrammer187/claude-code-profi
 yourself, `chmod +x` it and move it onto your PATH.) On macOS, credential
 isolation is partial (see below).
 
+Using [Homebrew](https://brew.sh)? This repo doubles as a tap — the formula
+picks the right binary for macOS (Intel or Apple Silicon) and Linux:
+
+```sh
+brew tap notaprogrammer187/ccswitch https://github.com/NotAProgrammer187/claude-code-profiles
+brew install notaprogrammer187/ccswitch/ccswitch
+```
+
 Both installers — and `ccswitch upgrade` — verify what they download against
 the `SHA256SUMS` manifest published with each release before installing it.
+The Scoop manifest and Homebrew formula pin the same hashes, and each release
+updates them automatically. A ccswitch installed by a package manager belongs
+to that manager: `ccswitch upgrade` says so and points you at `scoop update` /
+`brew upgrade` instead of fighting it.
 
 Neither ccswitch nor Claude Code will surprise you with an update, but you
 also shouldn't have to go looking: at most once a day, a background check

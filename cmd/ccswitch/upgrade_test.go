@@ -179,6 +179,42 @@ func TestVerifyChecksum(t *testing.T) {
 	}
 }
 
+func TestManagedInstaller(t *testing.T) {
+	cases := []struct {
+		path       string
+		scoopRoots []string
+		want       string // manager name; "" means unmanaged
+	}{
+		{`C:\Users\r\scoop\apps\ccswitch\0.1.7\ccswitch.exe`, nil, "Scoop"},
+		{`D:\Scoop\apps\ccswitch\current\ccswitch.exe`, nil, "Scoop"},
+		// A relocated root (the SCOOP env var) has no "scoop" in the path and
+		// is only caught when the root is passed in.
+		{`D:\tools\apps\ccswitch\current\ccswitch.exe`, []string{`D:\tools`}, "Scoop"},
+		{`D:\tools\apps\ccswitch\current\ccswitch.exe`, nil, ""},
+		// A relocated root that doesn't hold this binary must not match.
+		{`C:\elsewhere\ccswitch.exe`, []string{`D:\tools`}, ""},
+		{"/opt/homebrew/Cellar/ccswitch/0.1.7/bin/ccswitch", nil, "Homebrew"},
+		{"/home/linuxbrew/.linuxbrew/Cellar/ccswitch/0.1.7/bin/ccswitch", nil, "Homebrew"},
+		// A directory merely named cellar (or scoop) is not a package manager:
+		// refusing to upgrade here would lock the user out for no reason.
+		{"/home/r/cellar/bin/ccswitch", nil, ""},
+		// A copy vendored inside some other Scoop app isn't ours to defer on —
+		// `scoop update ccswitch` wouldn't touch it.
+		{`C:\Users\r\scoop\apps\othertool\current\ccswitch.exe`, nil, ""},
+		{"/usr/local/bin/ccswitch", nil, ""},
+		{`C:\Users\r\.local\bin\ccswitch.exe`, nil, ""},
+	}
+	for _, c := range cases {
+		name, hint := managedInstaller(c.path, c.scoopRoots)
+		if name != c.want {
+			t.Errorf("managedInstaller(%q, %v) = %q, want %q", c.path, c.scoopRoots, name, c.want)
+		}
+		if (name == "") != (hint == "") {
+			t.Errorf("managedInstaller(%q): name and hint must come together, got %q / %q", c.path, name, hint)
+		}
+	}
+}
+
 func TestProgressReaderTracksIdle(t *testing.T) {
 	pr := &progressReader{r: strings.NewReader("hello")}
 	pr.last.Store(time.Now().Add(-time.Hour).UnixNano())
