@@ -98,8 +98,8 @@ func splitLine(line string) []string {
 // only, so the list reads like the help text rather than every alias.
 var completeCommands = []string{
 	"run", "use", "usage", "sync", "defaults", "link", "unlink", "links", "new",
-	"import", "rename", "rm", "list", "current", "where", "init", "upgrade",
-	"version", "help",
+	"import", "rename", "rm", "list", "current", "where", "init", "doctor",
+	"upgrade", "version", "help",
 }
 
 var completeFlags = map[string][]string{

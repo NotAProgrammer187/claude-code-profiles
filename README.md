@@ -95,6 +95,7 @@ cd claude-code-profiles
 | `ccswitch list` | print profiles |
 | `ccswitch current` | print the profile this shell is set to |
 | `ccswitch where work` | print a profile's config directory |
+| `ccswitch doctor` | check the whole setup and say what to fix (see below) |
 | `ccswitch upgrade` | update ccswitch to the latest release |
 
 **First run:** press `i` to import the account you're already logged into (this
@@ -268,6 +269,38 @@ only the keys you name are touched: everything else in each profile's
 `settings.json` — its model, its permissions, its MCP allowances — is left
 alone. If a profile's `settings.json` can't be parsed, ccswitch says so and
 writes nothing rather than replacing it.
+
+### When something's off: `ccswitch doctor`
+
+`ccswitch doctor` answers "why isn't this working?" in one pass — one line per
+check, each either fine or telling you what to do about it:
+
+```
+ccswitch 0.1.7 on windows/amd64
+
+  ok    binary — ~\bin\ccswitch.exe
+  ok    claude — ~\AppData\Roaming\npm\claude.cmd
+  warn  environment — ANTHROPIC_API_KEY is set — ccswitch strips it at launch, but a plain `claude` will bill the key instead of using your login
+  ok    storage — ~\.ccswitch
+  ok    state — ~\.ccswitch\state.json
+  ok    work — you@work.com, signed in
+  FAIL  personal — settings.json does not parse — fix it by hand; ccswitch won't touch a file it can't read
+
+1 problem, 1 warning.
+```
+
+It covers the claude binary being on PATH, environment variables that would
+override your login or profiles, a second ccswitch install shadowing the one
+you're running, `~/.ccswitch` sitting inside a cloud-synced folder (profiles
+hold live OAuth tokens), our own state and shared-settings files, every
+profile's `settings.json` / `.claude.json` / credentials parsing, two profiles
+signed in to the same account (one set of rate limits — `--best` would count it
+twice), and directory links pointing at profiles or directories that no longer
+exist.
+
+It's strictly read-only: nothing is repaired, moved or rewritten, so you can
+run it while deciding what to do. Exit code 1 when it finds a real problem, so
+scripts can gate on it.
 
 ## How it works
 
