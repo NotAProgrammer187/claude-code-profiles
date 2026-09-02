@@ -163,7 +163,30 @@ there instead, fill in `watchArt` in `cmd/ccswitch/watch.go` — one string per
 line, centred in the accent colour, with any line too wide for the panel
 dropped rather than wrapped.
 
-### Pin a shell to a profile
+### Your account, in Claude Code's status line
+
+Claude Code's status line can name the account the session is running as —
+useful the moment you have more than one. `ccswitch statusline` prints one
+line shaped for the `statusLine` setting: profile, model, and both rate-limit
+windows, amber at 70% and red (with the reset time) at 90%, the same
+thresholds as everywhere else:
+
+```
+work · Opus 4.5 · 5h 42% · wk 12%
+```
+
+Wire it into every profile at once — this is exactly what `defaults` is for:
+
+```powershell
+ccswitch defaults set statusLine '{"type":"command","command":"ccswitch statusline"}'
+```
+
+(Or set that value in one profile's `settings.json` by hand.) The status line
+runs the command constantly, so it never touches the network itself: the
+numbers come from a small cache that a detached helper refreshes at most every
+two minutes, and until the first refresh lands the line simply shows the
+profile without numbers. Sessions launched without ccswitch work too — the
+line reads the default `~/.claude` and labels itself `claude`.
 
 `ccswitch run` launches one session; `ccswitch use` points the shell itself at
 a profile, so every plain `claude` you type afterwards runs as that account. A
