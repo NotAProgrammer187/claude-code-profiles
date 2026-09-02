@@ -58,6 +58,7 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
   ccswitch list            print profiles
   ccswitch current         print the profile this shell is set to
   ccswitch where <name>    print a profile's config directory
+  ccswitch doctor          check the setup end to end and say what to fix
   ccswitch upgrade         update ccswitch to the latest release
   ccswitch version
   ccswitch help
@@ -129,6 +130,8 @@ func run(args []string) error {
 		return cmdCurrent()
 	case "where":
 		return cmdWhere(args[1:])
+	case "doctor", "check":
+		return cmdDoctor(args[1:])
 	case "upgrade", "self-update":
 		return cmdUpgrade()
 	case "version", "--version", "-v":
