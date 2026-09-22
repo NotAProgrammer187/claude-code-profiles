@@ -143,7 +143,7 @@ func installedClaudeVersion() (string, error) {
 	// busy machine is slow. The helper is detached, so nobody is waiting.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	out, err := claudeCommand(ctx, bin, "--version").Output()
+	out, err := childCommand(ctx, bin, "--version").Output()
 	if err != nil {
 		return "", err
 	}
