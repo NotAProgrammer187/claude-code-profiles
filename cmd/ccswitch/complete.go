@@ -97,13 +97,14 @@ func splitLine(line string) []string {
 // completeCommands is what we offer for the first word — the primary names
 // only, so the list reads like the help text rather than every alias.
 var completeCommands = []string{
-	"run", "use", "usage", "sync", "defaults", "link", "unlink", "links", "new",
+	"run", "exec", "use", "usage", "sync", "defaults", "link", "unlink", "links", "new",
 	"import", "rename", "rm", "list", "current", "where", "init", "doctor",
 	"upgrade", "version", "help",
 }
 
 var completeFlags = map[string][]string{
 	"run":   {"--best"},
+	"exec":  {"--best"},
 	"use":   {"--unset", "--shell"},
 	"sync":  {"--from", "--to", "--only", "--dry-run", "--yes"},
 	"usage": {"--watch", "--every"},
@@ -179,9 +180,10 @@ func completions(words, profiles []string) []string {
 		if len(prior) == 1 {
 			return matching(profiles, prefix)
 		}
-	case "run", "use", "where", "rm", "remove", "sync":
+	case "run", "exec", "use", "where", "rm", "remove", "sync":
 		// One profile argument, then we have nothing useful to add — anything
-		// after `run <profile> --` belongs to claude, not to us.
+		// after `run <profile> --` belongs to claude, and the command after
+		// `exec <profile>` is the shell's to complete, not ours.
 		if len(prior) == 1 {
 			return matching(profiles, prefix)
 		}

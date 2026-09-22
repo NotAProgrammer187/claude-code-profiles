@@ -46,7 +46,7 @@ func Command(p Profile, args []string) (*exec.Cmd, error) {
 		return nil, err
 	}
 
-	cmd := claudeCommand(context.Background(), bin, args...)
+	cmd := childCommand(context.Background(), bin, args...)
 	cmd.Env = childEnv(p.Dir)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -54,10 +54,11 @@ func Command(p Profile, args []string) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-// claudeCommand builds a process running the claude binary. The npm install of
-// Claude Code ships claude.cmd on Windows, which needs cmd.exe and its own
-// quoting rules — see batchCommand.
-func claudeCommand(ctx context.Context, bin string, args ...string) *exec.Cmd {
+// childCommand builds a process running bin. The npm install of Claude Code
+// ships claude.cmd on Windows — as do plenty of the tools `ccswitch exec` is
+// handed — and batch files need cmd.exe and its own quoting rules: see
+// batchCommand.
+func childCommand(ctx context.Context, bin string, args ...string) *exec.Cmd {
 	lower := strings.ToLower(bin)
 	if runtime.GOOS == "windows" && (strings.HasSuffix(lower, ".cmd") || strings.HasSuffix(lower, ".bat")) {
 		return batchCommand(ctx, bin, args...)

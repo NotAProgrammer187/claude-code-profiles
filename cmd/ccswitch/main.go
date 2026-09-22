@@ -22,6 +22,10 @@ const usage = `ccswitch — run Claude Code as any of your accounts, without log
                            extra args after -- go to claude
   ccswitch run --best      launch the signed-in profile with the most
                            rate-limit headroom
+  ccswitch exec <name> -- <command...>
+                           run any command as a profile, e.g. code . or
+                           claude mcp add (--best and the linked-directory
+                           fallback work as they do for run)
   ccswitch use <name>      pin this shell to a profile (prints the command;
                            eval it, e.g. Invoke-Expression (ccswitch use work))
   ccswitch use --unset     print the command that unpins this shell
@@ -89,6 +93,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "run":
 		return cmdRun(args[1:])
+	case "exec":
+		return cmdExec(args[1:])
 	case "use":
 		return cmdUse(args[1:])
 	case "usage", "limits":

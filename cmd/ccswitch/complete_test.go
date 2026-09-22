@@ -17,11 +17,15 @@ func TestCompletions(t *testing.T) {
 		{"nothing typed yet", nil, completeCommands},
 		{"partial command", []string{"ru"}, []string{"run"}},
 		{"command prefix matching several", []string{"u"}, []string{"use", "usage", "unlink", "upgrade"}},
+		{"exec is a command", []string{"ex"}, []string{"exec"}},
 		{"profile after run", []string{"run", ""}, testProfiles},
 		// Profile names are matched case-insensitively elsewhere, so a
 		// lowercase prefix has to find an upper-case profile.
 		{"profile is case-insensitive", []string{"run", "w"}, []string{"Work"}},
 		{"profile after use", []string{"use", "p"}, []string{"personal"}},
+		{"profile after exec", []string{"exec", "s"}, []string{"side"}},
+		{"flags for exec", []string{"exec", "--"}, []string{"--best"}},
+		{"command after exec is the shell's job", []string{"exec", "work", ""}, nil},
 		{"profile after where", []string{"where", "s"}, []string{"side"}},
 		{"first name of rename", []string{"rename", "s"}, []string{"side"}},
 		{"flags for use", []string{"use", "--"}, []string{"--unset", "--shell"}},

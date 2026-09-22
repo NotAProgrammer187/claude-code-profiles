@@ -78,6 +78,7 @@ cd claude-code-profiles
 | `ccswitch run` | launch the profile this directory is linked to (see below) |
 | `ccswitch run work -- --resume` | anything after `--` is passed to `claude` |
 | `ccswitch run --best` | launch the signed-in account with the most rate-limit headroom |
+| `ccswitch exec work -- code .` | run any command as a profile — VS Code, `claude mcp add`, a script (see below) |
 | `ccswitch use work` | pin the current shell to a profile (see below) |
 | `ccswitch init pwsh` | shell integration: `use` applies itself, plus tab completion |
 | `ccswitch link work` | use this profile for the current directory and below |
@@ -188,6 +189,29 @@ numbers come from a small cache that a detached helper refreshes at most every
 two minutes, and until the first refresh lands the line simply shows the
 profile without numbers. Sessions launched without ccswitch work too — the
 line reads the default `~/.claude` and labels itself `claude`.
+
+### Run anything as a profile: `ccswitch exec`
+
+`ccswitch run` launches Claude Code. Some of what you do with an account isn't
+that command — opening VS Code so its Claude extension signs in as the right
+account, registering an MCP server with `claude mcp add`, a script that calls
+`claude -p`. `exec` runs any of them as a profile:
+
+```powershell
+ccswitch exec work -- code .                       # VS Code, as work
+ccswitch exec work -- claude mcp add github ...    # register a server in work only
+ccswitch exec --best -- claude -p "summarise this" # whichever account has headroom
+ccswitch exec -- npm test                          # this directory's linked profile
+```
+
+It's `run` with the command made a parameter, and it behaves the same way:
+shared `defaults` are written into the profile first, `ANTHROPIC_API_KEY` and
+`ANTHROPIC_AUTH_TOKEN` are stripped so the login wins, Ctrl-C goes to the
+command rather than to ccswitch, and the command's exit code comes straight
+back. The `--` is optional but worth the habit — it keeps the command's own
+flags from being read as ours.
+
+### Pin a shell to a profile
 
 `ccswitch run` launches one session; `ccswitch use` points the shell itself at
 a profile, so every plain `claude` you type afterwards runs as that account. A
