@@ -350,13 +350,25 @@ It's strictly read-only: nothing is repaired, moved or rewritten, so you can
 run it while deciding what to do. Exit code 1 when it finds a real problem, so
 scripts can gate on it.
 
-### Ctrl+V screenshots on Windows
+### Pasting screenshots: Windows, macOS, Linux
 
-We've all done it: Win+Shift+S, Ctrl+V into Claude Code, and… nothing. It
-isn't you, and it isn't ccswitch. On Windows, Claude Code's image-paste key is
-**Alt+V**, not Ctrl+V. On top of that, Windows Terminal takes Ctrl+V for its
-own paste, which only handles text. With just a picture on the clipboard, the
-key never reaches Claude at all.
+We've all done it: take a screenshot, hit paste in Claude Code, and… nothing.
+It isn't you, and it isn't ccswitch. Claude Code's image-paste key differs from
+system to system, and the terminal often grabs the paste key before Claude
+sees it:
+
+| | Image paste key | What gets in the way |
+|---|---|---|
+| Windows | **Alt+V** | Windows Terminal takes Ctrl+V for its own paste, which only handles text |
+| macOS | **Ctrl+V**, not Cmd+V | Cmd+V is the terminal's paste, which only handles text |
+| Linux | **Ctrl+V** | Claude needs `wl-clipboard` or `xclip` installed to read the image |
+| WSL | **Ctrl+V** or **Alt+V** | Windows Terminal takes Ctrl+V, same as on Windows |
+
+Wherever Ctrl+V is the image key, it still pastes text when the clipboard has
+no image. Claude Code falls back to the clipboard's text (checked on Claude
+Code 2.1.331), so binding it costs you nothing.
+
+#### Windows
 
 Alt+V works out of the box. To make Ctrl+V do it, change two settings:
 
@@ -381,20 +393,52 @@ Running `/keybindings` inside a session opens it:
 }
 ```
 
-Normal paste still works. Claude Code's image paste falls back to the
-clipboard's text when there's no image, so Ctrl+V pastes a screenshot when you
-have one and text when you don't (checked on Claude Code 2.1.331). Outside
-Claude Code, PowerShell handles Ctrl+V itself. Command Prompt won't paste on
-Ctrl+V anymore, so use Ctrl+Shift+V there.
-
-Each profile has its own config directory, so copy the binding to the rest
-with `ccswitch sync --from <name> --only keybindings`.
+Ctrl+V now pastes a screenshot when you have one and text when you don't.
+Outside Claude Code, PowerShell handles Ctrl+V itself. Command Prompt won't
+paste on Ctrl+V anymore, so use Ctrl+Shift+V there.
 
 Dragging an image in from Explorer has its own problem. Windows Terminal won't
 accept a drop when it runs elevated, which happens when it's started as admin
 or when UAC is turned off. If a drop does nothing, copy the file's path instead
 (Ctrl+Shift+C in Explorer) and paste that into your prompt. Claude reads an
 image from its path just as well.
+
+#### macOS
+
+Nothing to set up. Press Ctrl+V for images and keep Cmd+V for text. To put a
+screenshot on the clipboard instead of the Desktop, add Ctrl to the usual
+shortcut: Cmd+Ctrl+Shift+4 copies a selection. Dragging an image file into
+the terminal works too.
+
+Remapping Cmd+V to send Ctrl+V isn't worth it. Your shell reads Ctrl+V as
+"insert the next key literally", so Cmd+V would stop pasting at the prompt.
+
+#### Linux
+
+Ctrl+V works once Claude Code can read the clipboard. It reads images with
+`wl-paste` on Wayland and `xclip` on X11. If neither is installed, image paste
+finds nothing and doesn't tell you why. Install the one for your session:
+
+```sh
+sudo apt install wl-clipboard   # Wayland (most current GNOME and KDE desktops)
+sudo apt install xclip          # X11
+```
+
+The package names are the same on `dnf` and `pacman`. Most Linux terminals
+paste text on Ctrl+Shift+V and leave Ctrl+V alone, so the key reaches Claude
+Code. If yours pastes on Ctrl+V, unbind that in the terminal's settings, as in
+step 1 for Windows. Dragging an image file into the terminal works too.
+
+#### WSL
+
+Ctrl+V and Alt+V are both image paste under WSL. Claude reads the image from
+the Windows clipboard, so screenshots need no extra tools. In Windows Terminal,
+Alt+V works as is. For Ctrl+V, do step 1 for Windows. Skip step 2, because
+Ctrl+V is already bound.
+
+Each profile has its own config directory, so a keybinding you add to one
+profile doesn't reach the others. Copy it over with
+`ccswitch sync --from <name> --only keybindings`.
 
 ## How it works
 
