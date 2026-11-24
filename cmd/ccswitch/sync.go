@@ -28,6 +28,10 @@ type syncItem struct {
 
 var syncItems = []syncItem{
 	{Name: "settings", Path: settingsFile},
+	// Key rebinds are per-person, not per-account. On Windows, binding ctrl+v
+	// to chat:imagePaste is how screenshot paste works at all, and a profile
+	// without the file silently falls back to alt+v.
+	{Name: "keybindings", Path: "keybindings.json"},
 	{Name: "claude-md", Path: "CLAUDE.md"},
 	{Name: "commands", Path: "commands", Dir: true},
 	{Name: "agents", Path: "agents", Dir: true},
