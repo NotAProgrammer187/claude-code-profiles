@@ -110,6 +110,10 @@ func TestSelectItems(t *testing.T) {
 	if _, err := selectItems("nope"); err == nil {
 		t.Error("expected an error for an unknown item")
 	}
+	kb, err := selectItems("keybindings")
+	if err != nil || len(kb) != 1 || kb[0].Path != "keybindings.json" || kb[0].Dir {
+		t.Errorf("keybindings should select the keybindings.json file: %v %v", kb, err)
+	}
 }
 
 // writeFile is a test helper: create parents, then write.

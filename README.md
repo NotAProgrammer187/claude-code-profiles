@@ -272,8 +272,9 @@ ccswitch sync --from work -n                   # preview, write nothing
 ```
 
 It always prints what it would write and asks before doing it (`-y` skips the
-prompt). The parts it knows about are `settings` (`settings.json`), `claude-md`
-(`CLAUDE.md`), `commands`, `agents`, `skills`, `output-styles`, `hooks`, and
+prompt). The parts it knows about are `settings` (`settings.json`),
+`keybindings` (`keybindings.json`), `claude-md` (`CLAUDE.md`), `commands`,
+`agents`, `skills`, `output-styles`, `hooks`, and
 `mcp` — your MCP servers, merged into each target's `.claude.json` so that
 file's own account identity, project state and history stay intact.
 
