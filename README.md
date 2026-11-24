@@ -350,6 +350,52 @@ It's strictly read-only: nothing is repaired, moved or rewritten, so you can
 run it while deciding what to do. Exit code 1 when it finds a real problem, so
 scripts can gate on it.
 
+### Ctrl+V screenshots on Windows
+
+We've all done it: Win+Shift+S, Ctrl+V into Claude Code, and… nothing. It
+isn't you, and it isn't ccswitch. On Windows, Claude Code's image-paste key is
+**Alt+V**, not Ctrl+V. On top of that, Windows Terminal takes Ctrl+V for its
+own paste, which only handles text. With just a picture on the clipboard, the
+key never reaches Claude at all.
+
+Alt+V works out of the box. To make Ctrl+V do it, change two settings:
+
+**1. Let Ctrl+V through Windows Terminal.** Open Settings → *Open JSON file*.
+In `keybindings`, replace any `ctrl+v` → `Terminal.PasteFromClipboard` entry
+with these two. They unbind Ctrl+V and keep text paste on Ctrl+Shift+V:
+
+```json
+{ "id": null, "keys": "ctrl+v" },
+{ "id": "Terminal.PasteFromClipboard", "keys": "ctrl+shift+v" }
+```
+
+**2. Bind Ctrl+V to image paste in Claude Code.** Edit `keybindings.json` in
+the profile's config directory, `~/.ccswitch/profiles/<name>/keybindings.json`.
+Running `/keybindings` inside a session opens it:
+
+```json
+{
+  "bindings": [
+    { "context": "Chat", "bindings": { "ctrl+v": "chat:imagePaste" } }
+  ]
+}
+```
+
+Normal paste still works. Claude Code's image paste falls back to the
+clipboard's text when there's no image, so Ctrl+V pastes a screenshot when you
+have one and text when you don't (checked on Claude Code 2.1.331). Outside
+Claude Code, PowerShell handles Ctrl+V itself. Command Prompt won't paste on
+Ctrl+V anymore, so use Ctrl+Shift+V there.
+
+Each profile has its own config directory, so copy the binding to the rest
+with `ccswitch sync --from <name> --only keybindings`.
+
+Dragging an image in from Explorer has its own problem. Windows Terminal won't
+accept a drop when it runs elevated, which happens when it's started as admin
+or when UAC is turned off. If a drop does nothing, copy the file's path instead
+(Ctrl+Shift+C in Explorer) and paste that into your prompt. Claude reads an
+image from its path just as well.
+
 ## How it works
 
 Claude Code keeps everything — credentials, `settings.json`, MCP servers,
