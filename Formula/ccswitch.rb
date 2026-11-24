@@ -2,22 +2,22 @@
 class Ccswitch < Formula
   desc "Switch between multiple Claude Code accounts without logging out"
   homepage "https://github.com/NotAProgrammer187/claude-code-profiles"
-  version "0.1.7"
+  version "0.1.8"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.7/ccswitch-darwin-arm64"
-      sha256 "36cf3e0ec9cfcd515ccf42dc2594de2f8b42f3ecb0e5d729dadc18cc5a762619"
+      url "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.8/ccswitch-darwin-arm64"
+      sha256 "addfbdbf6d5750b3950e08289d8250fdaae76a69e165762f2ead3b65314b5e68"
     else
-      url "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.7/ccswitch-darwin-amd64"
-      sha256 "5cf272c85d0942f43f1b8ff465dabd6cc6be5a917ce5bbd17350c73b94a6e77d"
+      url "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.8/ccswitch-darwin-amd64"
+      sha256 "ea840b2431d3aea0f13cdd9dfd976f847d8664c53e3c907f41ee91d4b796adbc"
     end
   end
 
   on_linux do
-    url "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.7/ccswitch-linux-amd64"
-    sha256 "f748794b0640d4efe9cbb9c19099ec87cfe3e506f959847b5aece01c5f3f48c1"
+    url "https://github.com/NotAProgrammer187/claude-code-profiles/releases/download/v0.1.8/ccswitch-linux-amd64"
+    sha256 "dbb17abb42681e3b7bd86e04cdf19d979e59a5619eca12c3e85a6c0a77822046"
   end
 
   def install
